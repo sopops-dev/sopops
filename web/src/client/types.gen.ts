@@ -8958,6 +8958,26 @@ export type SetUpOut = {
 };
 
 /**
+ * SettingsActionOut
+ */
+export type SettingsActionOut = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Url
+     *
+     * Opened in a new tab.
+     */
+    url: string;
+    /**
+     * Kind
+     */
+    kind: 'primary' | 'secondary';
+};
+
+/**
  * SettingsConfig
  */
 export type SettingsConfig = {
@@ -9028,6 +9048,34 @@ export type SettingsIn = {
 };
 
 /**
+ * SettingsRowOut
+ */
+export type SettingsRowOut = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Used
+     *
+     * With `limit`: a progress bar, used of limit.
+     */
+    used: number | null;
+    /**
+     * Limit
+     */
+    limit: number | null;
+    /**
+     * Note
+     */
+    note: string | null;
+};
+
+/**
  * SettingsSaved
  */
 export type SettingsSaved = {
@@ -9036,6 +9084,54 @@ export type SettingsSaved = {
      * Changed
      */
     changed: Array<WrittenFile>;
+};
+
+/**
+ * SettingsSectionOut
+ */
+export type SettingsSectionOut = {
+    /**
+     * Id
+     *
+     * The page's path under Settings: /settings/<id>.
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Rows
+     */
+    rows: Array<SettingsRowOut>;
+    /**
+     * Actions
+     */
+    actions: Array<SettingsActionOut>;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Note
+     */
+    note: string | null;
+    /**
+     * Icon
+     */
+    icon: 'card' | 'gauge' | 'info' | 'shield' | null;
+};
+
+/**
+ * SettingsSectionsOut
+ */
+export type SettingsSectionsOut = {
+    /**
+     * Sections
+     *
+     * From this server's extensions; none on open-source sopops.
+     */
+    sections: Array<SettingsSectionOut>;
 };
 
 /**
@@ -17560,6 +17656,36 @@ export type ListNoticesResponses = {
 };
 
 export type ListNoticesResponse = ListNoticesResponses[keyof ListNoticesResponses];
+
+export type ListSettingsSectionsData = {
+    body?: never;
+    path: {
+        /**
+         * Workspace
+         */
+        workspace: string;
+    };
+    query?: never;
+    url: '/v1/workspaces/{workspace}/settings/sections';
+};
+
+export type ListSettingsSectionsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListSettingsSectionsError = ListSettingsSectionsErrors[keyof ListSettingsSectionsErrors];
+
+export type ListSettingsSectionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: SettingsSectionsOut;
+};
+
+export type ListSettingsSectionsResponse = ListSettingsSectionsResponses[keyof ListSettingsSectionsResponses];
 
 export type GetAiSettingsData = {
     body?: never;

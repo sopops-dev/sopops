@@ -1,12 +1,35 @@
 // Settings: its own side menu of sections, each on its own route (/w/<ws>/settings/<section>), and the heading every
 // section opens with. Its Back link returns to the last workspace page you had open.
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
-import { ArrowLeft, ChartColumn, Download, GitBranch, History, KeyRound, LifeBuoy, ListChecks, type LucideIcon, Menu, Plug, SlidersHorizontal, Terminal, Users, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ChartColumn,
+  CreditCard,
+  Download,
+  Gauge,
+  GitBranch,
+  History,
+  Info,
+  KeyRound,
+  LifeBuoy,
+  ListChecks,
+  type LucideIcon,
+  Menu,
+  Plug,
+  Puzzle,
+  Shield,
+  SlidersHorizontal,
+  Terminal,
+  Users,
+  X,
+} from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
+import { type SettingsSectionOut, q } from "@/lib/api";
 import { lastPageHref } from "@/lib/last-page";
 import { useRailCollapsed } from "@/lib/rail";
 import { cn } from "@/lib/utils";
-import { settingsHref, type SettingsSection, useWs } from "@/lib/workspace";
+import { settingsHref, type SettingsSection, useWs, wsHref } from "@/lib/workspace";
 import { PageTitle, Sub } from "./bits";
 import { RailFrame, RailItem } from "./layout";
 import { Button } from "./ui/button";
@@ -43,10 +66,18 @@ const MENU: { heading: string; items: { section: SettingsSection; label: string;
 
 const LABEL = Object.fromEntries(MENU.flatMap((g) => g.items.map((i) => [i.section, i.label]))) as Record<SettingsSection, string>;
 
-/** The section the path is on, e.g. "github" for /w/acme/settings/github. */
-function sectionOf(pathname: string): SettingsSection | undefined {
-  const s = /^\/w\/[^/]+\/settings\/([^/?#]+)/.exec(pathname)?.[1];
-  return s && s in LABEL ? (s as SettingsSection) : undefined;
+/** The section the path is on, e.g. "github" for /w/acme/settings/github: a built-in one, or an extension's id. */
+function sectionOf(pathname: string): string | undefined {
+  return /^\/w\/[^/]+\/settings\/([^/?#]+)/.exec(pathname)?.[1];
+}
+
+const EXTENSION_ICON: Record<NonNullable<SettingsSectionOut["icon"]>, LucideIcon> = { card: CreditCard, gauge: Gauge, info: Info, shield: Shield };
+
+/** Pages the server's extensions add (GET …/settings/sections): listed under Workspace, after the built-in ones. A
+ * built-in section with the same id wins. */
+export function useExtensionSections(ws: string): SettingsSectionOut[] {
+  const res = useQuery(q.settingsSections(ws));
+  return (res.data?.sections ?? []).filter((s) => !(s.id in LABEL));
 }
 
 /** Settings' side menu, in the rail frame the other pages use (collapsible to icons). At phone width it folds into a
@@ -55,6 +86,8 @@ export function SettingsNav() {
   const { ws } = useWs();
   const { pathname } = useLocation();
   const here = sectionOf(pathname);
+  const extra = useExtensionSections(ws);
+  const label = here ? (LABEL[here as SettingsSection] ?? extra.find((x) => x.id === here)?.title) : undefined;
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [pathname]);
   const collapsed = useRailCollapsed();
@@ -66,6 +99,10 @@ export function SettingsNav() {
         {g.items.map((i) => (
           <RailItem key={i.section} collapsed={c} href={settingsHref(ws, i.section)} icon={i.icon} label={i.label} active={here === i.section} />
         ))}
+        {g.heading === "Workspace" &&
+          extra.map((x) => (
+            <RailItem key={x.id} collapsed={c} href={wsHref(ws, "settings", x.id)} icon={x.icon ? EXTENSION_ICON[x.icon] : Puzzle} label={x.title} active={here === x.id} />
+          ))}
       </div>
     ));
   return (
@@ -80,7 +117,7 @@ export function SettingsNav() {
           {backLink(false)}
           <span className="flex-1" />
           <Button size="sm" variant="outline" aria-expanded={open} aria-controls="settings-menu" onClick={() => setOpen((o) => !o)}>
-            {open ? <X /> : <Menu />} {here ? LABEL[here] : "Settings"}
+            {open ? <X /> : <Menu />} {label ?? "Settings"}
           </Button>
         </div>
         <div id="settings-menu" className={cn("mt-3", !open && "hidden")}>

@@ -152,6 +152,9 @@ export const q = {
   features: () => queryOptions({ queryKey: ["features"], queryFn: () => call(sdk.serverFeatures()), staleTime: Infinity }),
   /** What the server's extensions want the workspace's members to see (none on open-source sopops). */
   notices: (ws: string) => queryOptions({ queryKey: ["ws", ws, "notices"], queryFn: () => call(sdk.listNotices({ path: { workspace: ws } })) }),
+  /** Pages the server's extensions add to Settings (none on open-source sopops). */
+  settingsSections: (ws: string) =>
+    queryOptions({ queryKey: ["ws", ws, "settings-sections"], queryFn: () => call(sdk.listSettingsSections({ path: { workspace: ws } })) }),
   calls: (ws: string, start: string, end: string) =>
     queryOptions({ queryKey: ["ws", ws, "usage", "calls", start, end], queryFn: () => call(sdk.callUsage({ path: { workspace: ws }, query: { start, end } })) }),
   prices: (ws: string) => queryOptions({ queryKey: ["ws", ws, "model-prices"], queryFn: () => call(sdk.modelPrices({ query: { workspace: ws } })) }),

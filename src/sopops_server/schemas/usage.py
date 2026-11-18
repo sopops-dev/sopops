@@ -77,6 +77,34 @@ class NoticeOut(BaseModel):
     action_url: str | None = Field(None, description="Opened in a new tab.")
 
 
+class SettingsRowOut(BaseModel):
+    label: str
+    value: str
+    used: float | None = Field(None, description="With `limit`: a progress bar, used of limit.")
+    limit: float | None = None
+    note: str | None = None
+
+
+class SettingsActionOut(BaseModel):
+    label: str
+    url: str = Field(description="Opened in a new tab.")
+    kind: Literal["primary", "secondary"] = "secondary"
+
+
+class SettingsSectionOut(BaseModel):
+    id: str = Field(description="The page's path under Settings: /settings/<id>.")
+    title: str
+    rows: list[SettingsRowOut]
+    actions: list[SettingsActionOut]
+    description: str | None = None
+    note: str | None = None
+    icon: Literal["card", "gauge", "info", "shield"] | None = None
+
+
+class SettingsSectionsOut(BaseModel):
+    sections: list[SettingsSectionOut] = Field(description="From this server's extensions; none on open-source sopops.")
+
+
 class NoticesOut(BaseModel):
     notices: list[NoticeOut] = Field(description="From this server's extensions; none on open-source sopops.")
 

@@ -10917,6 +10917,49 @@
         }
       }
     },
+    "/v1/workspaces/{workspace}/settings/sections": {
+      "get": {
+        "tags": [
+          "usage"
+        ],
+        "summary": "List Settings Sections",
+        "description": "Pages this server's extensions add to the workspace's Settings. None on open-source sopops.",
+        "operationId": "list_settings_sections",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsSectionsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workspaces/{workspace}/ai": {
       "get": {
         "tags": [
@@ -30165,6 +30208,35 @@
         ],
         "title": "SetUpOut"
       },
+      "SettingsActionOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Opened in a new tab."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "primary",
+              "secondary"
+            ],
+            "title": "Kind",
+            "default": "secondary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "url",
+          "kind"
+        ],
+        "title": "SettingsActionOut"
+      },
       "SettingsConfig": {
         "properties": {
           "version": {
@@ -30278,6 +30350,61 @@
         "type": "object",
         "title": "SettingsIn"
       },
+      "SettingsRowOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "used": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used",
+            "description": "With `limit`: a progress bar, used of limit."
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "value",
+          "used",
+          "limit",
+          "note"
+        ],
+        "title": "SettingsRowOut"
+      },
       "SettingsSaved": {
         "properties": {
           "item": {
@@ -30297,6 +30424,100 @@
           "changed"
         ],
         "title": "SettingsSaved"
+      },
+      "SettingsSectionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The page's path under Settings: /settings/<id>."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsRowOut"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsActionOut"
+            },
+            "type": "array",
+            "title": "Actions"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "card",
+                  "gauge",
+                  "info",
+                  "shield"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "rows",
+          "actions",
+          "description",
+          "note",
+          "icon"
+        ],
+        "title": "SettingsSectionOut"
+      },
+      "SettingsSectionsOut": {
+        "properties": {
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsSectionOut"
+            },
+            "type": "array",
+            "title": "Sections",
+            "description": "From this server's extensions; none on open-source sopops."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sections"
+        ],
+        "title": "SettingsSectionsOut"
       },
       "SignUpIn": {
         "properties": {

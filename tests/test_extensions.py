@@ -109,3 +109,34 @@ def test_notices_list_what_providers_return_and_skip_one_that_raises(env, caplog
 
 def test_any_member_reads_notices():
     assert kind_of("list_notices") == SESSION
+
+
+def test_settings_sections_list_what_providers_return_first_id_wins_and_skip_one_that_raises(env, caplog):
+    assert env.client.get(f"{WS}/settings/sections").json() == {"sections": []}
+
+    def broken(ws):
+        raise RuntimeError("down")
+
+    S, R, A = extensions.SettingsSection, extensions.SettingsRow, extensions.SettingsAction
+    extensions.add_settings_sections(broken)
+    extensions.add_settings_sections(lambda ws: [S(
+        id="storage", title="Storage", description=f"For {ws}.", icon="gauge", note="Resets monthly.",
+        rows=[R("Region", "us-east-1"), R("Recordings", "40 of 100 GB", used=40, limit=100, note="Counted nightly.")],
+        actions=[A("Change", "https://example.com/change", "primary"), A("Details", "https://example.com/details")])])
+    extensions.add_settings_sections(lambda ws: [S(id="storage", title="Second"), S(id="about", title="About")])
+    with caplog.at_level(logging.ERROR, logger="sopops.extensions"):
+        res = env.client.get(f"{WS}/settings/sections")
+    assert res.status_code == 200
+    assert res.json() == {"sections": [
+        {"id": "storage", "title": "Storage", "description": "For demo.", "icon": "gauge", "note": "Resets monthly.",
+         "rows": [{"label": "Region", "value": "us-east-1", "used": None, "limit": None, "note": None},
+                  {"label": "Recordings", "value": "40 of 100 GB", "used": 40.0, "limit": 100.0, "note": "Counted nightly."}],
+         "actions": [{"label": "Change", "url": "https://example.com/change", "kind": "primary"},
+                     {"label": "Details", "url": "https://example.com/details", "kind": "secondary"}]},
+        {"id": "about", "title": "About", "description": None, "icon": None, "note": None, "rows": [], "actions": []},
+    ]}
+    assert "settings section provider" in caplog.text
+
+
+def test_any_member_reads_settings_sections():
+    assert kind_of("list_settings_sections") == SESSION

@@ -278,3 +278,24 @@ Prices come from sopops's table and `SOPOPS_MODEL_PRICES` ([Model spend](insight
 | `action_label`, `action_url` | Optional: a button that opens the URL in a new tab. |
 
 An extension can also hold sessions unchecked (`add_analysis_gate`): they come in as usual and stay `received` with the extension's reason as `status_reason`, like sessions held while analysis is paused, until it releases them (`release_held`) and they're checked.
+
+## Settings sections
+
+`GET /v1/workspaces/{ws}/settings/sections`, for any member of the workspace, returns pages the server's extensions add to the workspace's Settings (`sopops_server.extensions.add_settings_sections`). Open-source sopops has none, so the list is empty and Settings shows only its own pages. Each section is a page at `/settings/<id>`, listed under Workspace; a built-in page with the same id wins.
+
+```json
+{"sections": [{"id": "storage", "title": "Storage", "description": "Recordings kept for this workspace.", "icon": "gauge",
+               "rows": [{"label": "Recordings", "value": "40 of 100 GB", "used": 40, "limit": 100, "note": "Counted nightly."}],
+               "actions": [{"label": "Add space", "url": "https://example.com/storage", "kind": "primary"}],
+               "note": null}]}
+```
+
+| Field | |
+|---|---|
+| `id`, `title` | The page's path under Settings, and its name in the menu and heading. |
+| `description`, `note` | Optional plain text: under the heading, and under the rows. |
+| `icon` | Optional: `card`, `gauge`, `info` or `shield` for the menu; a generic icon otherwise. |
+| `rows` | Label and value. With `used` and `limit`, a progress bar; `note` is a line of small print under the value. |
+| `actions` | Buttons that open `url` in a new tab; `kind` `primary` or `secondary`. |
+
+The request's actor is set while a provider runs, so it can leave out rows or buttons that a member shouldn't see.

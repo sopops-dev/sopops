@@ -18,13 +18,18 @@ Gates and notices let an extension hold a workspace's sessions unchecked and tel
 it returns holds the session like a pause does (`received`, with that reason); `release_held` queues them again.
 `add_notices(fn)` adds banners and dialogs the UI shows across the workspace (`GET /v1/workspaces/{ws}/notices`).
 Both run in the server and the worker, so register them wherever the extension loads.
+
+Settings sections: `add_settings_sections(fn)` adds pages to the workspace's Settings, each with rows of label and value
+(a row can show progress, used of limit, and a note) and buttons that open a URL
+(`GET /v1/workspaces/{ws}/settings/sections`). The request's actor (`sopops_server.auth.actor.get()`) is set while
+`fn` runs, so a provider can leave out what a member shouldn't see.
 """
 
 from __future__ import annotations
 
 import logging
 import weakref
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 from typing import TYPE_CHECKING, Callable, Literal
 
@@ -52,11 +57,46 @@ class Notice:
     action_url: str | None = None  # opened in a new tab
 
 
+@dataclass
+class SettingsRow:
+    """One line of a settings section. With `used` (and `limit`), the UI draws a progress bar under it."""
+
+    label: str
+    value: str
+    used: float | None = None
+    limit: float | None = None
+    note: str | None = None
+
+
+@dataclass
+class SettingsAction:
+    """A button that opens `url` in a new tab."""
+
+    label: str
+    url: str
+    kind: Literal["primary", "secondary"] = "secondary"
+
+
+@dataclass
+class SettingsSection:
+    """A page in the workspace's Settings, at /settings/<id> (a built-in page with the same id wins)."""
+
+    id: str  # lowercase letters, digits and -
+    title: str
+    rows: list[SettingsRow] = field(default_factory=list)
+    actions: list[SettingsAction] = field(default_factory=list)
+    description: str | None = None  # under the page's heading
+    note: str | None = None  # under the rows
+    icon: Literal["card", "gauge", "info", "shield"] | None = None  # the menu's icon; default a generic one
+
+
 Gate = Callable[[str, str], "str | None"]  # (workspace, session) -> why it's held, or None
 Notices = Callable[[str], "list[Notice]"]  # workspace -> its notices
+SettingsSections = Callable[[str], "list[SettingsSection]"]  # workspace -> its extra settings pages
 
 _gates: list[Gate] = []
 _notices: list[Notices] = []
+_settings: list[SettingsSections] = []
 _jobs: weakref.WeakKeyDictionary[Store, Jobs] = weakref.WeakKeyDictionary()  # the app's, for release_held
 
 
@@ -68,6 +108,11 @@ def add_analysis_gate(fn: Gate) -> None:
 def add_notices(fn: Notices) -> None:
     """Show notices: `fn(workspace_id)` returns the workspace's."""
     _notices.append(fn)
+
+
+def add_settings_sections(fn: SettingsSections) -> None:
+    """Add settings pages: `fn(workspace_id)` returns the workspace's."""
+    _settings.append(fn)
 
 
 def held(workspace_id: str, session_id: str) -> str | None:
@@ -93,6 +138,23 @@ def notices(workspace_id: str) -> list[Notice]:
     return out
 
 
+def settings_sections(workspace_id: str) -> list[SettingsSection]:
+    """Every provider's sections for the workspace, the first of an id winning; one that raises is skipped."""
+    out: list[SettingsSection] = []
+    seen: set[str] = set()
+    for fn in list(_settings):
+        try:
+            sections = list(fn(workspace_id))
+        except Exception:
+            log.exception("settings section provider %r failed for %s", fn, workspace_id)
+            continue
+        for section in sections:
+            if section.id not in seen:
+                seen.add(section.id)
+                out.append(section)
+    return out
+
+
 def release_held(store: Store, workspace_id: str, reason: str, jobs: Jobs | None = None) -> int:
     """Queue every session in the workspace held with exactly this reason, as resuming a pause does. Returns how many.
     The gate should let them through by now, or they're held again. `jobs`: default, the app's (or a new one)."""
@@ -106,9 +168,10 @@ def release_held(store: Store, workspace_id: str, reason: str, jobs: Jobs | None
 
 
 def clear() -> None:
-    """Forget every gate and notice provider (tests)."""
+    """Forget every gate, notice and settings section provider (tests)."""
     _gates.clear()
     _notices.clear()
+    _settings.clear()
 
 
 def load(app: FastAPI, store: Store, jobs: Jobs) -> None:

@@ -43,6 +43,7 @@ import { Route as WWsResultsVersionsRouteImport } from './routes/w.$ws.results.v
 import { Route as WWsSessionsIndexRouteImport } from './routes/w.$ws.sessions.index'
 import { Route as WWsSessionsIdRouteImport } from './routes/w.$ws.sessions.$id'
 import { Route as WWsSettingsIndexRouteImport } from './routes/w.$ws.settings.index'
+import { Route as WWsSettingsSectionRouteImport } from './routes/w.$ws.settings.$section'
 import { Route as WWsSettingsAccessRouteImport } from './routes/w.$ws.settings.access'
 import { Route as WWsSettingsChecksRouteImport } from './routes/w.$ws.settings.checks'
 import { Route as WWsSettingsDefaultsRouteImport } from './routes/w.$ws.settings.defaults'
@@ -239,6 +240,11 @@ const WWsSettingsIndexRoute = WWsSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => WWsSettingsRoute,
 } as any)
+const WWsSettingsSectionRoute = WWsSettingsSectionRouteImport.update({
+  id: '/$section',
+  path: '/$section',
+  getParentRoute: () => WWsSettingsRoute,
+} as any)
 const WWsSettingsAccessRoute = WWsSettingsAccessRouteImport.update({
   id: '/access',
   path: '/access',
@@ -393,6 +399,7 @@ export interface FileRoutesByFullPath {
   '/w/$ws/results/releases': typeof WWsResultsReleasesRoute
   '/w/$ws/results/versions': typeof WWsResultsVersionsRoute
   '/w/$ws/sessions/$id': typeof WWsSessionsIdRoute
+  '/w/$ws/settings/$section': typeof WWsSettingsSectionRoute
   '/w/$ws/settings/access': typeof WWsSettingsAccessRoute
   '/w/$ws/settings/checks': typeof WWsSettingsChecksRoute
   '/w/$ws/settings/defaults': typeof WWsSettingsDefaultsRoute
@@ -452,6 +459,7 @@ export interface FileRoutesByTo {
   '/w/$ws/results/releases': typeof WWsResultsReleasesRoute
   '/w/$ws/results/versions': typeof WWsResultsVersionsRoute
   '/w/$ws/sessions/$id': typeof WWsSessionsIdRoute
+  '/w/$ws/settings/$section': typeof WWsSettingsSectionRoute
   '/w/$ws/settings/access': typeof WWsSettingsAccessRoute
   '/w/$ws/settings/checks': typeof WWsSettingsChecksRoute
   '/w/$ws/settings/defaults': typeof WWsSettingsDefaultsRoute
@@ -514,6 +522,7 @@ export interface FileRoutesById {
   '/w/$ws/results/releases': typeof WWsResultsReleasesRoute
   '/w/$ws/results/versions': typeof WWsResultsVersionsRoute
   '/w/$ws/sessions/$id': typeof WWsSessionsIdRoute
+  '/w/$ws/settings/$section': typeof WWsSettingsSectionRoute
   '/w/$ws/settings/access': typeof WWsSettingsAccessRoute
   '/w/$ws/settings/checks': typeof WWsSettingsChecksRoute
   '/w/$ws/settings/defaults': typeof WWsSettingsDefaultsRoute
@@ -577,6 +586,7 @@ export interface FileRouteTypes {
     | '/w/$ws/results/releases'
     | '/w/$ws/results/versions'
     | '/w/$ws/sessions/$id'
+    | '/w/$ws/settings/$section'
     | '/w/$ws/settings/access'
     | '/w/$ws/settings/checks'
     | '/w/$ws/settings/defaults'
@@ -636,6 +646,7 @@ export interface FileRouteTypes {
     | '/w/$ws/results/releases'
     | '/w/$ws/results/versions'
     | '/w/$ws/sessions/$id'
+    | '/w/$ws/settings/$section'
     | '/w/$ws/settings/access'
     | '/w/$ws/settings/checks'
     | '/w/$ws/settings/defaults'
@@ -697,6 +708,7 @@ export interface FileRouteTypes {
     | '/w/$ws/results/releases'
     | '/w/$ws/results/versions'
     | '/w/$ws/sessions/$id'
+    | '/w/$ws/settings/$section'
     | '/w/$ws/settings/access'
     | '/w/$ws/settings/checks'
     | '/w/$ws/settings/defaults'
@@ -986,6 +998,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WWsSettingsIndexRouteImport
       parentRoute: typeof WWsSettingsRoute
     }
+    '/w/$ws/settings/$section': {
+      id: '/w/$ws/settings/$section'
+      path: '/$section'
+      fullPath: '/w/$ws/settings/$section'
+      preLoaderRoute: typeof WWsSettingsSectionRouteImport
+      parentRoute: typeof WWsSettingsRoute
+    }
     '/w/$ws/settings/access': {
       id: '/w/$ws/settings/access'
       path: '/access'
@@ -1165,6 +1184,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface WWsSettingsRouteChildren {
+  WWsSettingsSectionRoute: typeof WWsSettingsSectionRoute
   WWsSettingsAccessRoute: typeof WWsSettingsAccessRoute
   WWsSettingsChecksRoute: typeof WWsSettingsChecksRoute
   WWsSettingsDefaultsRoute: typeof WWsSettingsDefaultsRoute
@@ -1181,6 +1201,7 @@ interface WWsSettingsRouteChildren {
 }
 
 const WWsSettingsRouteChildren: WWsSettingsRouteChildren = {
+  WWsSettingsSectionRoute: WWsSettingsSectionRoute,
   WWsSettingsAccessRoute: WWsSettingsAccessRoute,
   WWsSettingsChecksRoute: WWsSettingsChecksRoute,
   WWsSettingsDefaultsRoute: WWsSettingsDefaultsRoute,

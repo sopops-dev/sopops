@@ -399,6 +399,21 @@ def test_notices_are_for_the_workspaces_members(owner, app):
         extensions.clear()
 
 
+def test_settings_sections_are_for_the_workspaces_members(owner, app):
+    from sopops_server import extensions
+
+    extensions.add_settings_sections(lambda ws: [extensions.SettingsSection(id="s", title="Extra")])
+    try:
+        member = join(owner, app, "mia@example.com", "member", "11")
+        assert member.get(f"{WS}/settings/sections").json()["sections"][0]["id"] == "s"
+        bob = TestClient(app)
+        sign_in(bob, "github", "2", "bob@example.com")
+        assert bob.get(f"{WS}/settings/sections").status_code == 404
+        assert TestClient(app).get(f"{WS}/settings/sections").status_code == 401
+    finally:
+        extensions.clear()
+
+
 def join(owner: TestClient, app, email: str, role: str, id: str) -> TestClient:
     token = owner.post("/v1/org/invites", json={"email": email, "role": role}).json()["link"].split("#")[1]
     c = TestClient(app)
