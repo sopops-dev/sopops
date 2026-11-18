@@ -68,6 +68,19 @@ class FeaturesOut(BaseModel):
     features: list[str] = Field(description="Features this server adds beyond open-source sopops, turned on by its extensions: `fine_tune` on hosted sopops.")
 
 
+class NoticeOut(BaseModel):
+    id: str = Field(description="Stable: the UI remembers a dismissal by it.")
+    level: Literal["info", "warning", "blocking"] = Field(description="`info` and `warning`: a banner; `blocking`: a dialog, a warning banner once closed.")
+    title: str
+    body: str
+    action_label: str | None = None
+    action_url: str | None = Field(None, description="Opened in a new tab.")
+
+
+class NoticesOut(BaseModel):
+    notices: list[NoticeOut] = Field(description="From this server's extensions; none on open-source sopops.")
+
+
 class DayCalls(BaseModel):
     day: date = Field(description="A UTC day.")
     calls: int

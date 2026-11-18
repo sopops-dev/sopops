@@ -10874,6 +10874,49 @@
         }
       }
     },
+    "/v1/workspaces/{workspace}/notices": {
+      "get": {
+        "tags": [
+          "usage"
+        ],
+        "summary": "List Notices",
+        "description": "What this server's extensions want the workspace's members to see: banners (`info`, `warning`) and dialogs\n(`blocking`). None on open-source sopops.",
+        "operationId": "list_notices",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workspaces/{workspace}/ai": {
       "get": {
         "tags": [
@@ -21731,6 +21774,83 @@
           "id"
         ],
         "title": "NewProcedure"
+      },
+      "NoticeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Stable: the UI remembers a dismissal by it."
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "blocking"
+            ],
+            "title": "Level",
+            "description": "`info` and `warning`: a banner; `blocking`: a dialog, a warning banner once closed."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "action_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Label"
+          },
+          "action_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Url",
+            "description": "Opened in a new tab."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "level",
+          "title",
+          "body",
+          "action_label",
+          "action_url"
+        ],
+        "title": "NoticeOut"
+      },
+      "NoticesOut": {
+        "properties": {
+          "notices": {
+            "items": {
+              "$ref": "#/components/schemas/NoticeOut"
+            },
+            "type": "array",
+            "title": "Notices",
+            "description": "From this server's extensions; none on open-source sopops."
+          }
+        },
+        "type": "object",
+        "required": [
+          "notices"
+        ],
+        "title": "NoticesOut"
       },
       "OpenPullRequestIn": {
         "properties": {

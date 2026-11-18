@@ -4307,6 +4307,54 @@ export type NewProcedure = {
 };
 
 /**
+ * NoticeOut
+ */
+export type NoticeOut = {
+    /**
+     * Id
+     *
+     * Stable: the UI remembers a dismissal by it.
+     */
+    id: string;
+    /**
+     * Level
+     *
+     * `info` and `warning`: a banner; `blocking`: a dialog, a warning banner once closed.
+     */
+    level: 'info' | 'warning' | 'blocking';
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Action Label
+     */
+    action_label: string | null;
+    /**
+     * Action Url
+     *
+     * Opened in a new tab.
+     */
+    action_url: string | null;
+};
+
+/**
+ * NoticesOut
+ */
+export type NoticesOut = {
+    /**
+     * Notices
+     *
+     * From this server's extensions; none on open-source sopops.
+     */
+    notices: Array<NoticeOut>;
+};
+
+/**
  * OpenPullRequestIn
  */
 export type OpenPullRequestIn = {
@@ -17482,6 +17530,36 @@ export type ServerFeaturesResponses = {
 };
 
 export type ServerFeaturesResponse = ServerFeaturesResponses[keyof ServerFeaturesResponses];
+
+export type ListNoticesData = {
+    body?: never;
+    path: {
+        /**
+         * Workspace
+         */
+        workspace: string;
+    };
+    query?: never;
+    url: '/v1/workspaces/{workspace}/notices';
+};
+
+export type ListNoticesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListNoticesError = ListNoticesErrors[keyof ListNoticesErrors];
+
+export type ListNoticesResponses = {
+    /**
+     * Successful Response
+     */
+    200: NoticesOut;
+};
+
+export type ListNoticesResponse = ListNoticesResponses[keyof ListNoticesResponses];
 
 export type GetAiSettingsData = {
     body?: never;

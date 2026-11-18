@@ -11,6 +11,10 @@ resume (`auth.access`).
 Skipping tags: a session with any of the workspace's `skip_tags` (its own tags, copied from its agent when it came in)
 stops before routing too, `excluded` with a reason that names the tag: those calls come in and show, but no model checks
 them. Taking a tag off the list queues the sessions it had skipped.
+
+Extensions can hold sessions too (`sopops_server.extensions.add_analysis_gate`): asked after the pause and skip tags, a
+gate's reason holds the session the same way, `received` (or `incomplete`) with that reason, until `release_held` queues
+it. An incomplete one comes back `received`: the reason that said it was incomplete was replaced by the gate's.
 """
 
 from __future__ import annotations
@@ -90,6 +94,18 @@ class Analysis:
             still = set(db.exec(select(SessionTag.session_id).where(SessionTag.workspace_id == ws, SessionTag.tag.in_(tags)))) if tags else set()
             freed = [SessionRef(workspace_id=ws, session_id=sid, revision=rev) for sid, rev in rows if sid not in still]
         return self.state(ws), freed
+
+    def held_for(self, ws: str, reason: str) -> list[SessionRef]:
+        """The sessions held with exactly this reason and not checked since (an extension's gate; see the module)."""
+        with self._db() as db:
+            checked = select(ProcedureCheck.session_id).where(ProcedureCheck.workspace_id == ws)
+            rows = db.exec(
+                select(SessionRecord.id, SessionRecord.payload_hash).where(
+                    SessionRecord.workspace_id == ws, SessionRecord.status.in_(HELD), SessionRecord.status_reason == reason,
+                    SessionRecord.id.not_in(checked),
+                ).order_by(SessionRecord.started_at)
+            )
+            return [SessionRef(workspace_id=ws, session_id=sid, revision=rev) for sid, rev in rows]
 
     def paused(self, ws: str) -> bool:
         return self.state(ws)["paused"]

@@ -260,3 +260,21 @@ It takes `fast` and `reasoning` (model strings, required) and `calls` (calls a m
 | `unpriced` | Models with no price on file, left out of the totals. |
 
 Prices come from sopops's table and `SOPOPS_MODEL_PRICES` ([Model spend](insights.md#model-spend)), then LiteLLM's bundled price list.
+
+## Notices
+
+`GET /v1/workspaces/{ws}/notices`, for any member of the workspace, returns what the server's extensions want its members to see. Open-source sopops has none, so the list is empty unless an extension adds a provider (`sopops_server.extensions.add_notices`). The app asks on load, every minute and when its tab gets focus.
+
+```json
+{"notices": [{"id": "maintenance-1", "level": "warning", "title": "Checks are delayed", "body": "New calls are saved and checked within the hour.",
+              "action_label": "Status page", "action_url": "https://status.example.com"}]}
+```
+
+| Field | |
+|---|---|
+| `id` | Stable: the app remembers a dismissal by it, for the browser session. |
+| `level` | `info` or `warning`: a banner at the top of the workspace. `blocking`: a dialog; closed with "Not now", it stays as a warning banner for the browser session. |
+| `title`, `body` | Plain text. |
+| `action_label`, `action_url` | Optional: a button that opens the URL in a new tab. |
+
+An extension can also hold sessions unchecked (`add_analysis_gate`): they come in as usual and stay `received` with the extension's reason as `status_reason`, like sessions held while analysis is paused, until it releases them (`release_held`) and they're checked.

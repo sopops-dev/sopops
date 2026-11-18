@@ -38,10 +38,11 @@ const STATUS: Record<Status, { label: string; tone: string; help: string }> = {
 
 const NUMERIC = new Set(["Duration", "Turns", "Release"]);
 
-export function StatusTag({ status, big }: { status: Status; big?: boolean }) {
+/** `reason`: why it's in this state (held while paused, or by an extension), shown on hover in place of the help. */
+export function StatusTag({ status, big, reason }: { status: Status; big?: boolean; reason?: string | null }) {
   const s = STATUS[status];
   return (
-    <span title={s.help}>
+    <span title={reason || s.help}>
       <Tag big={big} className={s.tone}>
         {s.label}
       </Tag>
@@ -270,7 +271,9 @@ export function SessionsView({ filters, onFilters }: { filters: SessionFilters; 
                   {showStatus && (
                     <td className="border-b px-2 py-2">
                       {/* Checked is the normal end state, so only the others are marked. */}
-                      {s.status !== "checked" && <StatusTag status={s.status} />}
+                      {s.status !== "checked" && <StatusTag status={s.status} reason={s.status_reason} />}
+                      {/* why a received call isn't checked yet: paused, held by an extension, no model */}
+                      {s.status === "received" && s.status_reason && <div className="text-muted-foreground mt-1 text-xs">{s.status_reason}</div>}
                     </td>
                   )}
                   <td className="border-b px-2 py-2">
@@ -378,7 +381,7 @@ function SessionDrawer({ id, ids, onOpen, onExpand }: { id: string | null; ids: 
                 {agentName(s)}, {when(s.started_at)}
               </SheetTitle>
               <SheetDescription className="text-muted-foreground mt-0.5 mb-3 flex flex-wrap items-center gap-2 text-sm">
-                <StatusTag status={s.status} />
+                <StatusTag status={s.status} reason={s.status_reason} />
                 {s.result && <ResultTag result={s.result} />}
                 <span>
                   {plural(s.turn_count, "turn", "turns")}

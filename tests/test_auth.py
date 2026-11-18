@@ -384,6 +384,21 @@ def test_a_dead_session_clears_the_hint(owner, app):
 # --- roles -------------------------------------------------------------------------------
 
 
+def test_notices_are_for_the_workspaces_members(owner, app):
+    from sopops_server import extensions
+
+    extensions.add_notices(lambda ws: [extensions.Notice(id="n", level="info", title="Hi", body="There.")])
+    try:
+        member = join(owner, app, "mia@example.com", "member", "11")
+        assert member.get(f"{WS}/notices").json()["notices"][0]["id"] == "n"
+        bob = TestClient(app)
+        sign_in(bob, "github", "2", "bob@example.com")
+        assert bob.get(f"{WS}/notices").status_code == 404  # another org's workspace isn't there for him
+        assert TestClient(app).get(f"{WS}/notices").status_code == 401
+    finally:
+        extensions.clear()
+
+
 def join(owner: TestClient, app, email: str, role: str, id: str) -> TestClient:
     token = owner.post("/v1/org/invites", json={"email": email, "role": role}).json()["link"].split("#")[1]
     c = TestClient(app)

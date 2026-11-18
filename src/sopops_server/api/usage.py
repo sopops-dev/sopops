@@ -1,15 +1,17 @@
 """Model spend: what model calls cost, by purpose, model and day, and the price table it's estimated with. And how
-many calls a workspace sent in a period."""
+many calls a workspace sent in a period. And what the server's extensions add: features, and notices."""
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Query, Request
 
+from .. import extensions
 from ..errors import workspace_id
 from ..insights import MAX_WINDOW, BadFilter, Filters
-from ..schemas import CallsResponse, FeaturesOut, PricesResponse, UsageResponse
+from ..schemas import CallsResponse, FeaturesOut, NoticesOut, PricesResponse, UsageResponse
 from ..store import Store
 from ..usage import price_table
 from .deps import OPEN
@@ -61,5 +63,11 @@ def router(store: Store) -> APIRouter:
     def server_features(request: Request) -> dict:
         """Features this server adds beyond open-source sopops, from its extensions (`fine_tune` on hosted sopops)."""
         return {"features": sorted(getattr(request.app.state, "sopops_features", set()))}
+
+    @r.get("/v1/workspaces/{workspace}/notices", response_model=NoticesOut, tags=["usage"])
+    def list_notices(workspace: str) -> dict:
+        """What this server's extensions want the workspace's members to see: banners (`info`, `warning`) and dialogs
+        (`blocking`). None on open-source sopops."""
+        return {"notices": [asdict(n) for n in extensions.notices(workspace_id(workspace))]}
 
     return r

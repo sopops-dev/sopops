@@ -3,6 +3,7 @@ import { Outlet, createFileRoute, useLocation } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { ErrorBanner } from "@/components/bits";
 import { Rail } from "@/components/layout";
+import { Notices } from "@/components/notices";
 import { SetupBar } from "@/components/setup";
 import { ConvertView } from "@/components/views";
 import { q } from "@/lib/api";
@@ -45,14 +46,17 @@ function WorkspaceLayout() {
         <Outlet />
       </WsContext.Provider>
     );
+  // Settings brings its own side menu; the notices sit above it as they do above the rail
   if (!convert && /^\/w\/[^/]+\/settings(\/|$)/.test(pathname))
     return (
       <WsContext.Provider value={value}>
+        <Notices ws={ws} />
         <Outlet />
       </WsContext.Provider>
     );
   return (
     <WsContext.Provider value={value}>
+      <Notices ws={ws} />
       <div className={cn("grid min-h-[calc(100vh-57px-var(--band-h))] grid-cols-1", railCols(collapsed))}>
         <Rail />
         <main className="min-w-0 px-4 pt-5 pb-10 md:px-8 md:pt-6">
