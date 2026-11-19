@@ -40,6 +40,7 @@ PAGES = [
     "releases",
     "sessions",
     "patterns",
+    "patterns?tab=fixed",
     "suggestions",
     "suggestions?status=applied",
     "suggestions?status=dismissed",
