@@ -232,7 +232,7 @@ export function Kpi({
       </div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
       {(prior || (delta && delta.value != null)) && (
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+        <div className="mt-0.5 flex flex-col items-start gap-0.5 text-sm">
           {delta && delta.value != null && (
             <Hint
               focusable={false}
@@ -241,7 +241,7 @@ export function Kpi({
               <DeltaMark delta={delta} />
             </Hint>
           )}
-          {prior && <span className="text-muted-foreground">was {prior} before</span>}
+          {prior && <span className="text-muted-foreground text-xs">Previous period: {prior}</span>}
         </div>
       )}
       {sub && <div className="text-muted-foreground mt-0.5 text-xs">{sub}</div>}
