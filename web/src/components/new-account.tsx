@@ -4,6 +4,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type AuthState, call, sdk } from "@/lib/api";
+import { intoNewTeam } from "@/lib/intent";
 import { setupHref, setupProgress } from "@/lib/setup";
 import { RedirectButtons } from "./account";
 import { StepShell } from "./setup";
@@ -16,10 +17,10 @@ export type AccountStep = "name" | "account" | "team";
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const MIN_PASSWORD = 10;
 
-/** Into the team's setup, at step 4, with nothing cached from before. */
+/** Into the team's setup, at step 4, with nothing cached from before (by way of where its sign-up intent goes first). */
 function intoSetup(ws: string) {
   setupProgress.set(ws, "first", "people");
-  assignApp(setupHref(ws, "people", "first"));
+  void intoNewTeam(ws, setupHref(ws, "people", "first"));
 }
 
 /**

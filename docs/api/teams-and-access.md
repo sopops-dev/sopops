@@ -299,3 +299,18 @@ An extension can also hold sessions unchecked (`add_analysis_gate`): they come i
 | `actions` | Buttons that open `url` in a new tab; `kind` `primary` or `secondary`. |
 
 The request's actor is set while a provider runs, so it can leave out rows or buttons that a member shouldn't see.
+
+## Sign-up intents
+
+A link into the app can carry `?intent=<word>` (lowercase letters, digits and `-`, up to 40), such as `/app/?intent=trial`. The UI keeps it in the browser through signing in, for a day, and once the person has made their team it asks where to send them first:
+
+```http
+POST /v1/workspaces/{ws}/intent
+{"intent": "trial", "next": "/w/acme/setup?step=people&flow=first"}
+```
+
+```json
+{"url": "https://example.com/start?team=acme"}
+```
+
+Owners and admins can call it. The server's extensions answer (`sopops_server.extensions.add_signup_intents`) with a URL, given the workspace, the word and `return_url`, the full address of `next` for a page elsewhere to send the person back to. `url` null means go on with setup, and on open-source sopops it's always null. `next` must be a path in the app.

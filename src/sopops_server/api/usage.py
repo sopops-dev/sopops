@@ -1,5 +1,6 @@
 """Model spend: what model calls cost, by purpose, model and day, and the price table it's estimated with. And how
-many calls a workspace sent in a period. And what the server's extensions add: features, notices and settings pages."""
+many calls a workspace sent in a period. And what the server's extensions add: features, notices, settings pages and
+where a new team goes first."""
 
 from __future__ import annotations
 
@@ -11,8 +12,9 @@ from fastapi import APIRouter, Query, Request
 from .. import extensions
 from ..errors import workspace_id
 from ..insights import MAX_WINDOW, BadFilter, Filters
-from ..schemas import CallsResponse, FeaturesOut, NoticesOut, PricesResponse, SettingsSectionsOut, UsageResponse
+from ..schemas import CallsResponse, FeaturesOut, IntentIn, IntentOut, NoticesOut, PricesResponse, SettingsSectionsOut, UsageResponse
 from ..store import Store
+from ..urls import public_url
 from ..usage import price_table
 from .deps import OPEN
 
@@ -74,5 +76,11 @@ def router(store: Store) -> APIRouter:
     def list_settings_sections(workspace: str) -> dict:
         """Pages this server's extensions add to the workspace's Settings. None on open-source sopops."""
         return {"sections": [asdict(s) for s in extensions.settings_sections(workspace_id(workspace))]}
+
+    @r.post("/v1/workspaces/{workspace}/intent", response_model=IntentOut, tags=["usage"])
+    def follow_intent(workspace: str, req: IntentIn, request: Request) -> dict:
+        """Where to send a new team's owner first, for the `?intent=` they signed up with: a URL from this server's
+        extensions, or none to go on with setup (always none on open-source sopops)."""
+        return {"url": extensions.follow_intent(workspace_id(workspace), req.intent, public_url(request) + req.next)}
 
     return r

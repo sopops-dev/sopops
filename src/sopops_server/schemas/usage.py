@@ -105,6 +105,15 @@ class SettingsSectionsOut(BaseModel):
     sections: list[SettingsSectionOut] = Field(description="From this server's extensions; none on open-source sopops.")
 
 
+class IntentIn(BaseModel):
+    intent: str = Field(pattern=r"^[a-z0-9-]{1,40}$", description="The word from the link the person came in with (`?intent=`).")
+    next: str = Field(default="/", pattern=r"^/([^/]|$)", max_length=500, description="The app path setup goes on at, for the return link.")
+
+
+class IntentOut(BaseModel):
+    url: str | None = Field(description="Where to send the person first; none to go on with setup (always on open-source sopops).")
+
+
 class NoticesOut(BaseModel):
     notices: list[NoticeOut] = Field(description="From this server's extensions; none on open-source sopops.")
 

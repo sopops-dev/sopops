@@ -2983,6 +2983,36 @@ export type InstructionIn = {
 };
 
 /**
+ * IntentIn
+ */
+export type IntentIn = {
+    /**
+     * Intent
+     *
+     * The word from the link the person came in with (`?intent=`).
+     */
+    intent: string;
+    /**
+     * Next
+     *
+     * The app path setup goes on at, for the return link.
+     */
+    next?: string;
+};
+
+/**
+ * IntentOut
+ */
+export type IntentOut = {
+    /**
+     * Url
+     *
+     * Where to send the person first; none to go on with setup (always on open-source sopops).
+     */
+    url: string | null;
+};
+
+/**
  * InviteCreated
  */
 export type InviteCreated = {
@@ -17686,6 +17716,36 @@ export type ListSettingsSectionsResponses = {
 };
 
 export type ListSettingsSectionsResponse = ListSettingsSectionsResponses[keyof ListSettingsSectionsResponses];
+
+export type FollowIntentData = {
+    body: IntentIn;
+    path: {
+        /**
+         * Workspace
+         */
+        workspace: string;
+    };
+    query?: never;
+    url: '/v1/workspaces/{workspace}/intent';
+};
+
+export type FollowIntentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FollowIntentError = FollowIntentErrors[keyof FollowIntentErrors];
+
+export type FollowIntentResponses = {
+    /**
+     * Successful Response
+     */
+    200: IntentOut;
+};
+
+export type FollowIntentResponse = FollowIntentResponses[keyof FollowIntentResponses];
 
 export type GetAiSettingsData = {
     body?: never;

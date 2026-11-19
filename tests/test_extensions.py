@@ -10,7 +10,7 @@ from test_analysis import model_calls
 from test_checks import session
 
 from sopops_server import extensions
-from sopops_server.auth.access import SESSION, kind_of
+from sopops_server.auth.access import ADMIN, SESSION, kind_of
 from sopops_server.pipeline.types import SessionRef
 
 env = test_checks.env  # the checks' workspace, with fake models
@@ -140,3 +140,32 @@ def test_settings_sections_list_what_providers_return_first_id_wins_and_skip_one
 
 def test_any_member_reads_settings_sections():
     assert kind_of("list_settings_sections") == SESSION
+
+
+def test_intent_goes_on_with_setup_without_a_provider_and_follows_the_first_url(env, caplog):
+    body = {"intent": "dev-year", "next": "/w/demo/setup?step=people&flow=first"}
+    assert env.client.post(f"{WS}/intent", json=body).json() == {"url": None}
+
+    def broken(ws, intent, back):
+        raise RuntimeError("down")
+
+    seen = []
+    extensions.add_signup_intents(broken)
+    extensions.add_signup_intents(lambda ws, intent, back: seen.append((ws, intent, back)) or None)
+    extensions.add_signup_intents(lambda ws, intent, back: f"https://pay.example.com/{intent}" if intent == "dev-year" else None)
+    extensions.add_signup_intents(lambda ws, intent, back: "https://later.example.com")
+    with caplog.at_level(logging.ERROR, logger="sopops.extensions"):
+        res = env.client.post(f"{WS}/intent", json=body)
+    assert res.json() == {"url": "https://pay.example.com/dev-year"}
+    assert seen == [("demo", "dev-year", "http://testserver/w/demo/setup?step=people&flow=first")]
+    assert "signup intent provider" in caplog.text
+
+
+@pytest.mark.parametrize("body", [{"intent": "Dev Year"}, {"intent": ""}, {"intent": "dev", "next": "//evil.example.com"},
+                                  {"intent": "dev", "next": "https://evil.example.com"}])
+def test_intent_rejects_odd_words_and_paths_off_the_app(env, body):
+    assert env.client.post(f"{WS}/intent", json=body).status_code == 422
+
+
+def test_owners_and_admins_follow_intents():
+    assert kind_of("follow_intent") == ADMIN

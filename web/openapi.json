@@ -10960,6 +10960,59 @@
         }
       }
     },
+    "/v1/workspaces/{workspace}/intent": {
+      "post": {
+        "tags": [
+          "usage"
+        ],
+        "summary": "Follow Intent",
+        "description": "Where to send a new team's owner first, for the `?intent=` they signed up with: a URL from this server's\nextensions, or none to go on with setup (always none on open-source sopops).",
+        "operationId": "follow_intent",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/workspaces/{workspace}/ai": {
       "get": {
         "tags": [
@@ -19748,6 +19801,50 @@
           "text"
         ],
         "title": "InstructionIn"
+      },
+      "IntentIn": {
+        "properties": {
+          "intent": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}$",
+            "title": "Intent",
+            "description": "The word from the link the person came in with (`?intent=`)."
+          },
+          "next": {
+            "type": "string",
+            "maxLength": 500,
+            "pattern": "^/([^/]|$)",
+            "title": "Next",
+            "description": "The app path setup goes on at, for the return link.",
+            "default": "/"
+          }
+        },
+        "type": "object",
+        "required": [
+          "intent"
+        ],
+        "title": "IntentIn"
+      },
+      "IntentOut": {
+        "properties": {
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Where to send the person first; none to go on with setup (always on open-source sopops)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "IntentOut"
       },
       "InviteCreated": {
         "properties": {

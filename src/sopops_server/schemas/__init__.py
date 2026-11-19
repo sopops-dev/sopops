@@ -119,7 +119,7 @@ from .insights import (
     Wording,
 )
 from .lineage import LineageRebuildOut, LineageRule, LinkHow, LinkIn, RuleLineageOut, WordingRef
-from .usage import CallsResponse, DayCalls, DaySpend, FeaturesOut, ModelPrice, ModelSpend, NoticeOut, NoticesOut, PricesResponse, Purpose, PurposeSpend, RolePrice, SettingsActionOut, SettingsRowOut, SettingsSectionOut, SettingsSectionsOut, SpendTotals, UsageResponse
+from .usage import CallsResponse, DayCalls, DaySpend, FeaturesOut, IntentIn, IntentOut, ModelPrice, ModelSpend, NoticeOut, NoticesOut, PricesResponse, Purpose, PurposeSpend, RolePrice, SettingsActionOut, SettingsRowOut, SettingsSectionOut, SettingsSectionsOut, SpendTotals, UsageResponse
 from .onboarding import (
     AgentImportOut,
     AgentImportRequest,
@@ -390,6 +390,8 @@ __all__ = [
     "SettingsRowOut",
     "SettingsSectionOut",
     "SettingsSectionsOut",
+    "IntentIn",
+    "IntentOut",
     "SpendTotals",
     "UsageResponse",
     "CallsResponse",

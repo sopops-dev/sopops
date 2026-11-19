@@ -23,6 +23,11 @@ Settings sections: `add_settings_sections(fn)` adds pages to the workspace's Set
 (a row can show progress, used of limit, and a note) and buttons that open a URL
 (`GET /v1/workspaces/{ws}/settings/sections`). The request's actor (`sopops_server.auth.actor.get()`) is set while
 `fn` runs, so a provider can leave out what a member shouldn't see.
+
+Sign-up intents: a link into the app can carry `?intent=<word>` (letters, digits and -), which the UI keeps through
+signing in. Once the person's team is made, it asks `POST /v1/workspaces/{ws}/intent` where to send them first:
+`add_signup_intents(fn)` answers with `fn(workspace_id, intent, return_url)`, a URL, or None to go on with setup.
+`return_url` is where setup goes on, for a page elsewhere to send the person back to.
 """
 
 from __future__ import annotations
@@ -93,10 +98,12 @@ class SettingsSection:
 Gate = Callable[[str, str], "str | None"]  # (workspace, session) -> why it's held, or None
 Notices = Callable[[str], "list[Notice]"]  # workspace -> its notices
 SettingsSections = Callable[[str], "list[SettingsSection]"]  # workspace -> its extra settings pages
+SignupIntent = Callable[[str, str, str], "str | None"]  # (workspace, intent, return_url) -> where to go first, or None
 
 _gates: list[Gate] = []
 _notices: list[Notices] = []
 _settings: list[SettingsSections] = []
+_intents: list[SignupIntent] = []
 _jobs: weakref.WeakKeyDictionary[Store, Jobs] = weakref.WeakKeyDictionary()  # the app's, for release_held
 
 
@@ -113,6 +120,11 @@ def add_notices(fn: Notices) -> None:
 def add_settings_sections(fn: SettingsSections) -> None:
     """Add settings pages: `fn(workspace_id)` returns the workspace's."""
     _settings.append(fn)
+
+
+def add_signup_intents(fn: SignupIntent) -> None:
+    """Send a new team somewhere first: `fn(workspace_id, intent, return_url)` returns a URL, or None."""
+    _intents.append(fn)
 
 
 def held(workspace_id: str, session_id: str) -> str | None:
@@ -155,6 +167,17 @@ def settings_sections(workspace_id: str) -> list[SettingsSection]:
     return out
 
 
+def follow_intent(workspace_id: str, intent: str, return_url: str) -> str | None:
+    """The first provider's URL for the intent, or None; one that raises is skipped, so setup goes on."""
+    for fn in list(_intents):
+        try:
+            if url := fn(workspace_id, intent, return_url):
+                return url
+        except Exception:
+            log.exception("signup intent provider %r failed for %s (%s)", fn, workspace_id, intent)
+    return None
+
+
 def release_held(store: Store, workspace_id: str, reason: str, jobs: Jobs | None = None) -> int:
     """Queue every session in the workspace held with exactly this reason, as resuming a pause does. Returns how many.
     The gate should let them through by now, or they're held again. `jobs`: default, the app's (or a new one)."""
@@ -168,10 +191,11 @@ def release_held(store: Store, workspace_id: str, reason: str, jobs: Jobs | None
 
 
 def clear() -> None:
-    """Forget every gate, notice and settings section provider (tests)."""
+    """Forget every gate, notice, settings section and signup intent provider (tests)."""
     _gates.clear()
     _notices.clear()
     _settings.clear()
+    _intents.clear()
 
 
 def load(app: FastAPI, store: Store, jobs: Jobs) -> None:

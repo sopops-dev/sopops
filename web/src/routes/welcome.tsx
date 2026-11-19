@@ -4,8 +4,8 @@ import { useState } from "react";
 import { type AccountStep, NewAccount, TeamForm } from "@/components/new-account";
 import { type AuthState, call, sdk } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { intoNewTeam } from "@/lib/intent";
 import { setupHref, setupProgress } from "@/lib/setup";
-import { assignApp } from "@/lib/paths";
 
 type Search = { step?: AccountStep };
 
@@ -46,7 +46,7 @@ function TeamStep({ auth }: { auth: AuthState }) {
       const made = await call(sdk.setUpOrg({ body: { team: team.trim() } }));
       setupProgress.set(made.workspace, "first", "people");
       await qc.invalidateQueries();
-      assignApp(setupHref(made.workspace, "people", "first"));
+      await intoNewTeam(made.workspace, setupHref(made.workspace, "people", "first"));
     } catch (e) {
       setError(message(e));
     }

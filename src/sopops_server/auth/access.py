@@ -103,6 +103,8 @@ ROUTES: dict[str, str] = {
     "set_typesafe_key": ADMIN, "set_ai_provider": ADMIN, "set_ai_models": ADMIN, "reset_ai_setting": ADMIN,
     # pausing analysis stops the checks a team pays for, and resuming starts them again: owners and admins too
     "set_analysis": ADMIN,
+    # where a new team goes first (an extension's checkout, say): whoever made the team
+    "follow_intent": ADMIN,
     # bringing past calls in reads the platform with the stored key, and checking them spends money
     "backfill_preview": ADMIN, "start_backfill": ADMIN, "get_backfill": ADMIN,
     # the GitHub App is one per sopops: made by an owner or admin
