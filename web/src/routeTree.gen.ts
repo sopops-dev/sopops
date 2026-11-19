@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CallReviewRouteImport } from './routes/call-review'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
@@ -73,6 +74,11 @@ import { Route as WWsResultsProceduresIdRulesRuleIdRouteImport } from './routes/
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CallReviewRoute = CallReviewRouteImport.update({
+  id: '/call-review',
+  path: '/call-review',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InviteRoute = InviteRouteImport.update({
@@ -376,6 +382,7 @@ const WWsResultsProceduresIdRulesRuleIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/call-review': typeof CallReviewRoute
   '/invite': typeof InviteRoute
   '/join': typeof JoinRoute
   '/set-password': typeof SetPasswordRoute
@@ -438,6 +445,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/call-review': typeof CallReviewRoute
   '/invite': typeof InviteRoute
   '/join': typeof JoinRoute
   '/set-password': typeof SetPasswordRoute
@@ -499,6 +507,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/call-review': typeof CallReviewRoute
   '/invite': typeof InviteRoute
   '/join': typeof JoinRoute
   '/set-password': typeof SetPasswordRoute
@@ -563,6 +572,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/call-review'
     | '/invite'
     | '/join'
     | '/set-password'
@@ -625,6 +635,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/call-review'
     | '/invite'
     | '/join'
     | '/set-password'
@@ -685,6 +696,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/call-review'
     | '/invite'
     | '/join'
     | '/set-password'
@@ -748,6 +760,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CallReviewRoute: typeof CallReviewRoute
   InviteRoute: typeof InviteRoute
   JoinRoute: typeof JoinRoute
   SetPasswordRoute: typeof SetPasswordRoute
@@ -765,6 +778,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/call-review': {
+      id: '/call-review'
+      path: '/call-review'
+      fullPath: '/call-review'
+      preLoaderRoute: typeof CallReviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invite': {
@@ -1306,6 +1326,7 @@ const WWsRouteWithChildren = WWsRoute._addFileChildren(WWsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CallReviewRoute: CallReviewRoute,
   InviteRoute: InviteRoute,
   JoinRoute: JoinRoute,
   SetPasswordRoute: SetPasswordRoute,

@@ -25,6 +25,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 /** Every page: behind the sign-in gate (when sign-in is on), with the top bar except on the sign-in, sign-up, invite, join and setup pages. */
 function Root() {
   const { pathname } = useLocation();
+  if (DEMO && pathname.endsWith("/call-review")) return <Outlet />;
   const bare = ["/sign-in", "/sign-up", "/invite", "/join", "/welcome"].includes(pathname) || /^\/w\/[^/]+\/setup$/.test(pathname);
   return (
     <TooltipProvider>
