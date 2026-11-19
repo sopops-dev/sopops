@@ -1047,7 +1047,7 @@ export function PatternView({ id }: { id: string }) {
               <VerdictPicker current={verdict?.verdict} busy={busy} onPick={(v, n) => void pick(v, n)} ruleKind={d.rule.kind} />
             </section>
           )}
-          <section className="bg-card rounded-lg border">
+          <section data-tour="pattern-examples" className="bg-card rounded-lg border">
             <header className="flex flex-wrap items-baseline justify-between gap-2 border-b bg-[var(--band)] px-4 py-2">
               <h2 className="text-sm font-semibold">Examples</h2>
               <span className="text-muted-foreground text-xs tabular-nums">

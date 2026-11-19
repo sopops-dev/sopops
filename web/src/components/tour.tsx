@@ -5,6 +5,7 @@ import { useLocation } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useAuth } from "@/lib/auth";
 import { DEMO, DEMO_URL, DEMO_WS, SIGN_UP_URL } from "@/lib/demo";
+import { reviewPatternId, reviewRule, reviewSessionId, reviewSuggestionId } from "@/lib/demo-review";
 import { appPath } from "@/lib/paths";
 import { cn } from "@/lib/utils";
 import { wsHref } from "@/lib/workspace";
@@ -24,7 +25,7 @@ type Step = {
   body: ReactNode;
 };
 
-const STEPS: Step[] = [
+const fullTour: Step[] = [
   {
     page: "",
     target: '[data-tour="needs-you"]',
@@ -141,17 +142,51 @@ const STEPS: Step[] = [
   },
 ];
 
+// The public demo opens with one connected case. The hosted workspace tour can
+// use different recordings, so it continues to discover example rows on screen.
+const example: Step[] = [
+  {
+    page: `sessions/${reviewSessionId}?procedure=delivery-orders&rule=${reviewRule}`,
+    target: '[data-tour="session-checks"]',
+    title: "The agent skipped the delivery-zone check",
+    body: <p>This Juniper Grill call ran on release 2. Read the caller’s address, then inspect the delivery-zone step and its evidence in the call review.</p>,
+  },
+  {
+    page: `patterns/${reviewPatternId}`,
+    target: '[data-tour="pattern-examples"]',
+    title: "The same step failed on 16 calls",
+    body: <p>Open another example to see how the mistake recurred. The reviewer grouped these calls under one rule in Delivery orders.</p>,
+  },
+  {
+    page: `suggestions/${reviewSuggestionId}`,
+    target: '[data-tour="fix-change"]',
+    title: "Review the instruction edit",
+    body: <p>This is the edit the team applied for that pattern. Inspect the wording they changed before it went live in release 3.</p>,
+  },
+  {
+    page: "results/releases?a=2&b=3&window=365d",
+    target: "main table",
+    title: "Compare the releases",
+    body: <p>Compare the rule results before and after the edit. Continue to Part 2 for the rest of the workspace, from building prompts to tracking a fix across calls.</p>,
+  },
+];
+const steps = DEMO ? [
+  ...example,
+  // Part 1 already visits the individual call and edit detail pages.
+  ...fullTour.filter(s => s.follow?.from !== "sessions" && s.follow?.from !== "suggestions?status=applied"),
+] : fullTour;
+
 // --- state: which step, kept for the tab so a reload carries on ----------------------------------------------------
 
 type State = { ws: string; step: number } | null;
-const KEY = "sopops.tour";
+const KEY = DEMO ? "sopops.demo.review-tour.v1" : "sopops.tour";
 const listeners = new Set<() => void>();
 let state: State = read();
 
 function read(): State {
   try {
     const s = JSON.parse(sessionStorage.getItem(KEY) ?? "null") as State;
-    return s && typeof s.ws === "string" && Number.isInteger(s.step) && s.step >= 0 && s.step < STEPS.length ? s : null;
+    return s && typeof s.ws === "string" && Number.isInteger(s.step) && s.step >= 0 && s.step < steps.length ? s : null;
   } catch {
     return null;
   }
@@ -269,8 +304,8 @@ function Running({ ws, n }: { ws: string; n: number }) {
   const go = useGo();
   const mine = useAuth().data?.org?.workspace;
   const home = mine && mine !== ws ? wsHref(mine) : null; // the tour ran in the demo: the last step goes back
-  const step = STEPS[n];
-  const last = n === STEPS.length - 1;
+  const step = steps[n];
+  const last = n === steps.length - 1;
   const followed = useRef<Record<number, string>>({}); // where each `follow` led, so Back returns to the same page
   const [ready, setReady] = useState(false);
   const [box, setBox] = useState<Box | null>(null);
@@ -315,7 +350,7 @@ function Running({ ws, n }: { ws: string; n: number }) {
     return () => cancelAnimationFrame(raf);
   }, [ready, step]);
 
-  const to = (i: number) => (i < 0 ? undefined : i >= STEPS.length ? set(null) : set({ ws, step: i }));
+  const to = (i: number) => (i < 0 ? undefined : i >= steps.length ? set(null) : set({ ws, step: i }));
   const finish = () => set(null);
 
   useEffect(() => {
@@ -339,7 +374,7 @@ function Running({ ws, n }: { ws: string; n: number }) {
       <Card n={n} step={step} box={box} waiting={!ready}>
         <div className="flex items-center gap-2 border-t px-4 py-3">
           <button type="button" onClick={finish} className="text-muted-foreground hover:text-foreground mr-auto cursor-pointer text-sm">
-            {last ? "Close" : "End tour"}
+            {DEMO && n === example.length - 1 ? "Explore on my own" : last ? "Close" : "End tour"}
           </button>
           {n > 0 && (
             <Button variant="outline" size="sm" onClick={() => to(n - 1)}>
@@ -358,7 +393,7 @@ function Running({ ws, n }: { ws: string; n: number }) {
             </Button>
           ) : (
             <Button size="sm" autoFocus onClick={() => to(n + 1)}>
-              {last ? "Done" : "Next"}
+              {DEMO && n === example.length - 1 ? "Continue to Part 2" : last ? "Done" : "Next"}
             </Button>
           )}
         </div>
@@ -409,6 +444,9 @@ function Card({ n, step, box, waiting, children }: { n: number; step: Step; box:
     ref.current?.querySelector<HTMLElement>("[autofocus], a[href]")?.focus({ preventScroll: true });
   }, [n]);
 
+  const secondPart = n >= example.length;
+  const progress = DEMO && secondPart ? n - example.length : n;
+  const total = DEMO ? (secondPart ? steps.length - example.length : example.length) : steps.length;
   const w = Math.min(400, vw - EDGE * 2);
   const ceiling = (document.querySelector("[data-topbar]")?.getBoundingClientRect().bottom ?? 0) + GAP; // under the sticky top bar
   const clampX = (x: number) => Math.min(Math.max(x, EDGE), vw - w - EDGE);
@@ -432,9 +470,10 @@ function Card({ n, step, box, waiting, children }: { n: number; step: Step; box:
       className="bg-card text-card-foreground fixed z-[61] border border-foreground shadow-[0_12px_32px_oklch(0.2_0.02_180/0.25)] motion-safe:transition-[top,left] motion-safe:duration-200"
       style={{ ...pos, width: w }}
     >
-      <div className="flex gap-1 px-4 pt-4" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={n + 1} aria-label="Tour progress">
-        {STEPS.map((_, i) => (
-          <span key={i} className={cn("h-1 flex-1", i <= n ? "bg-primary" : "bg-border")} />
+      {DEMO && <p className="t-label px-4 pt-4 text-muted-foreground">{secondPart ? "Part 2 · Workspace walkthrough" : "Part 1 · One call review"} · {progress + 1}/{total}</p>}
+      <div className="flex gap-1 px-4 pt-4" role="progressbar" aria-valuemin={1} aria-valuemax={total} aria-valuenow={progress + 1} aria-label="Tour progress">
+        {Array.from({ length: total }, (_, i) => (
+          <span key={i} className={cn("h-1 flex-1", i <= progress ? "bg-primary" : "bg-border")} />
         ))}
       </div>
       <div key={n} className="px-4 pt-3 pb-4 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
