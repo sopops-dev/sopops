@@ -1,5 +1,6 @@
 import { posix } from "node:path";
 import { defineConfig } from "vitepress";
+import { exportAgentContent, pageRoute } from "./agent-content.mjs";
 
 const REPO = "https://github.com/sopops-dev/sopops";
 
@@ -33,7 +34,17 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   srcExclude: ["README.md", "node_modules/**"],
+  sitemap: { hostname: `https://sopops.dev${BASE}` },
+  buildEnd: (config) => exportAgentContent(config, BASE),
+  transformHead({ pageData }) {
+    if (pageData.relativePath === "404.md") return [];
+    return [
+      ["link", { rel: "canonical", href: `https://sopops.dev${BASE}${pageRoute(pageData.relativePath)}` }],
+      ["link", { rel: "alternate", type: "text/markdown", title: "Markdown", href: `${BASE}${pageData.relativePath}` }],
+    ];
+  },
   head: [
+    ["link", { rel: "help", type: "text/plain", title: "Agent content index", href: `${BASE}llms.txt` }],
     ["link", { rel: "icon", type: "image/svg+xml", href: `${BASE}favicon.svg` }],
     ["link", { rel: "preconnect", href: "https://fonts.googleapis.com" }],
     ["link", { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" }],
@@ -66,6 +77,7 @@ export default defineConfig({
     logo: "/favicon.svg",
     siteTitle: "sopops",
     nav: [
+      { text: "For agents", link: `https://sopops.dev${BASE}llms.txt` },
       { text: "Get started", link: "/first-agent" },
       { text: "API", link: "/api/" },
       { text: "sopops.dev", link: "https://sopops.dev" },
