@@ -89,6 +89,11 @@ class SettingsActionOut(BaseModel):
     label: str
     url: str = Field(description="Opened in a new tab.")
     kind: Literal["primary", "secondary"] = "secondary"
+    group: str | None = Field(None, description="Actions with a group show one group at a time, under a switch of the group names.")
+    title: str | None = Field(None, description="With a title the action is a card: title, value and badge, detail, then the button.")
+    value: str | None = None
+    badge: str | None = Field(None, description="A short highlight beside the value.")
+    detail: str | None = None
 
 
 class SettingsSectionOut(BaseModel):

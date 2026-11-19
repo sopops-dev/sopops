@@ -122,7 +122,8 @@ def test_settings_sections_list_what_providers_return_first_id_wins_and_skip_one
     extensions.add_settings_sections(lambda ws: [S(
         id="storage", title="Storage", description=f"For {ws}.", icon="gauge", note="Resets monthly.",
         rows=[R("Region", "us-east-1"), R("Recordings", "40 of 100 GB", used=40, limit=100, note="Counted nightly.")],
-        actions=[A("Change", "https://example.com/change", "primary"), A("Details", "https://example.com/details")])])
+        actions=[A("Change", "https://example.com/change", "primary"), A("Details", "https://example.com/details"),
+                 A("Pick", "https://example.com/big", group="Yearly", title="Big", value="$9/year", badge="Save 25%", detail="Lots")])])
     extensions.add_settings_sections(lambda ws: [S(id="storage", title="Second"), S(id="about", title="About")])
     with caplog.at_level(logging.ERROR, logger="sopops.extensions"):
         res = env.client.get(f"{WS}/settings/sections")
@@ -131,8 +132,10 @@ def test_settings_sections_list_what_providers_return_first_id_wins_and_skip_one
         {"id": "storage", "title": "Storage", "description": "For demo.", "icon": "gauge", "note": "Resets monthly.",
          "rows": [{"label": "Region", "value": "us-east-1", "used": None, "limit": None, "note": None},
                   {"label": "Recordings", "value": "40 of 100 GB", "used": 40.0, "limit": 100.0, "note": "Counted nightly."}],
-         "actions": [{"label": "Change", "url": "https://example.com/change", "kind": "primary"},
-                     {"label": "Details", "url": "https://example.com/details", "kind": "secondary"}]},
+         "actions": [{"label": "Change", "url": "https://example.com/change", "kind": "primary", "group": None, "title": None, "value": None, "badge": None, "detail": None},
+                     {"label": "Details", "url": "https://example.com/details", "kind": "secondary", "group": None, "title": None, "value": None, "badge": None, "detail": None},
+                     {"label": "Pick", "url": "https://example.com/big", "kind": "secondary", "group": "Yearly", "title": "Big",
+                      "value": "$9/year", "badge": "Save 25%", "detail": "Lots"}]},
         {"id": "about", "title": "About", "description": None, "icon": None, "note": None, "rows": [], "actions": []},
     ]}
     assert "settings section provider" in caplog.text

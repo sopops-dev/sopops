@@ -75,11 +75,18 @@ class SettingsRow:
 
 @dataclass
 class SettingsAction:
-    """A button that opens `url` in a new tab."""
+    """A button that opens `url` in a new tab. With `title` it is a card instead: the title, `value` with `badge`
+    beside it, `detail` under them, then the button. Actions with a `group` show one group at a time, under a switch
+    of the group names in the order they first appear; actions without one always show."""
 
     label: str
     url: str
     kind: Literal["primary", "secondary"] = "secondary"
+    group: str | None = None
+    title: str | None = None
+    value: str | None = None
+    badge: str | None = None  # a short highlight beside the value
+    detail: str | None = None
 
 
 @dataclass

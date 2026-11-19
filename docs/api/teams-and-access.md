@@ -296,7 +296,7 @@ An extension can also hold sessions unchecked (`add_analysis_gate`): they come i
 | `description`, `note` | Optional plain text: under the heading, and under the rows. |
 | `icon` | Optional: `card`, `gauge`, `info` or `shield` for the menu; a generic icon otherwise. |
 | `rows` | Label and value. With `used` and `limit`, a progress bar; `note` is a line of small print under the value. |
-| `actions` | Buttons that open `url` in a new tab; `kind` `primary` or `secondary`. |
+| `actions` | Buttons that open `url` in a new tab; `kind` `primary` or `secondary`. With `title`, a card: `title`, `value` with `badge` beside it, `detail`, then the button. With `group`, one group shows at a time under a switch of the group names. |
 
 The request's actor is set while a provider runs, so it can leave out rows or buttons that a member shouldn't see.
 

@@ -30324,13 +30324,76 @@
             ],
             "title": "Kind",
             "default": "secondary"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group",
+            "description": "Actions with a group show one group at a time, under a switch of the group names."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "With a title the action is a card: title, value and badge, detail, then the button."
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "badge": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Badge",
+            "description": "A short highlight beside the value."
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
           }
         },
         "type": "object",
         "required": [
           "label",
           "url",
-          "kind"
+          "kind",
+          "group",
+          "title",
+          "value",
+          "badge",
+          "detail"
         ],
         "title": "SettingsActionOut"
       },

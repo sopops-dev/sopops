@@ -9005,6 +9005,32 @@ export type SettingsActionOut = {
      * Kind
      */
     kind: 'primary' | 'secondary';
+    /**
+     * Group
+     *
+     * Actions with a group show one group at a time, under a switch of the group names.
+     */
+    group: string | null;
+    /**
+     * Title
+     *
+     * With a title the action is a card: title, value and badge, detail, then the button.
+     */
+    title: string | null;
+    /**
+     * Value
+     */
+    value: string | null;
+    /**
+     * Badge
+     *
+     * A short highlight beside the value.
+     */
+    badge: string | null;
+    /**
+     * Detail
+     */
+    detail: string | null;
 };
 
 /**
