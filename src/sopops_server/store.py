@@ -620,6 +620,9 @@ class Store:
             with self._session() as db, db.begin():
                 name = db.get_bind().dialect.name
                 dialect = postgresql if name == "postgresql" else sqlite
+                if name == "sqlite":
+                    # Reserve the writer before any reads, including ownership lookup.
+                    db.connection().exec_driver_sql("BEGIN IMMEDIATE")
                 if db.get(Workspace, ws) is None:
                     db.execute(dialect.insert(Workspace.__table__).values(workspace=ws, org_id=actor.workspace_org(db)).on_conflict_do_nothing())
                 if name == "postgresql":

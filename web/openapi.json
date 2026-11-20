@@ -11811,7 +11811,7 @@
           "repo"
         ],
         "summary": "Send Repo Drafts",
-        "description": "Send drafts to GitHub: open the sync pull request (branch `sopops/sync`) with the drafts' differences from\nthe base branch, or update the open one. Syncs from GitHub first.",
+        "description": "Send drafts to GitHub: open the connection's sync pull request with the drafts' differences from\nthe base branch, or update the open one. Syncs from GitHub first.",
         "operationId": "send_repo_drafts",
         "parameters": [
           {

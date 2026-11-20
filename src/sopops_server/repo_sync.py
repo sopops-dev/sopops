@@ -13,7 +13,7 @@ says why), noted "Synced from GitHub abc1234". The commit becomes the next base.
 makes no version, so a commit that came from sopops changes nothing. Webhooks and polling only sync a connection synced
 before (Sync now, a pull, or the onboarding pull request merging): until then the drafts aren't the repository's.
 
-**sopops to GitHub** (`send`): the drafts' differences from the folder go on one long-lived branch, `sopops/sync`, as
+**sopops to GitHub** (`send`): the drafts' differences from the folder go on one long-lived branch per connection, `sopops/<connection-id>/sync`, as
 one commit on the base branch's head, with one pull request from it (sending again replaces the commit, so the pull
 request shows the drafts as they are). It's followed like the other pull requests (`follow_pr`); when it merges, the
 drafts are synced from the base branch, with nothing to write.
@@ -28,17 +28,22 @@ Each change goes to the workspace's live stream as an event with `topic: repo` (
 from __future__ import annotations
 
 import logging
+import hashlib
+import json
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 from sqlmodel import Session, select
+from sqlalchemy import func
+import raad
 
-from . import forms, github, merge
+from . import forms, github, merge, raad_backend
 from .errors import Conflict, NotFound, workspace_id
 from .github import GitHubError
-from .orm import RepoConnection, SyncConflict
+from .orm import FileVersion, RepoConnection, SyncConflict
 from .runtime import crypto
 from .sop import Invalid
 
@@ -103,12 +108,14 @@ def notify(store: Store, ws: str, kind: str, **data) -> None:
 
 
 def sync(store: Store, workspace: str, sha: str | None = None, author: str | None = None, force: bool = False) -> dict:
-    """Bring the folder at `sha` (default: the base branch's head) into the drafts. A commit already synced is a no-op
+    """Bring the current base branch into drafts (legacy callers may pass `sha`). A commit already synced is a no-op
     unless `force`. Returns {workspace, sha, changed, merged, conflicts, unchanged, error}."""
     ws = workspace_id(workspace)
     conn = github.require(store, ws)
     if conn.broken:
         raise GitHubError(f"the repository connection is broken: {conn.broken}", 400)
+    if (native := raad_backend.backend(store, conn)) is not None:
+        return sync_native(store, conn, native, author, force)
     ours = {f["path"]: f["content"] for f in store.head(ws, content=True)}
     with github.client(store, conn) as gh:
         sha = sha or github.branch_head(gh, conn.owner, conn.repo, conn.base_branch)
@@ -190,19 +197,17 @@ def resolve(store: Store, workspace: str, path: str, take: str, content: str | N
     ws = workspace_id(workspace)
     if take not in TAKES:
         raise ValueError(f"take must be one of {', '.join(TAKES)}")
-    with Session(store.engine) as db:
+    with store._locked(ws) as db:
         c = db.get(SyncConflict, (ws, path))
-    if c is None:
-        raise NotFound(f"no sync conflict for '{path}'")
-    if take == "github":
-        store.edit(ws, {path: c.theirs}, author, f"Took GitHub's version from {c.sha[:7]}")
-    elif take == "edited":
-        if content is None:
-            raise ValueError("send the edited file's content")
-        store.edit(ws, {path: content}, author, f"Resolved the sync conflict with GitHub {c.sha[:7]}")
-    with Session(store.engine) as db, db.begin():
-        if (row := db.get(SyncConflict, (ws, path))) is not None:
-            db.delete(row)
+        if c is None:
+            raise NotFound(f"no sync conflict for '{path}'")
+        if take == "github":
+            store._write(db, ws, {path: c.theirs}, author, f"Took GitHub's version from {c.sha[:7]}", replace=False)
+        elif take == "edited":
+            if content is None:
+                raise ValueError("send the edited file's content")
+            store._write(db, ws, {path: content}, author, f"Resolved the sync conflict with GitHub {c.sha[:7]}", replace=False)
+        db.delete(c)
     notify(store, ws, "resolved", path=path)
     return github.get(store, ws)
 
@@ -219,6 +224,9 @@ def send(store: Store, workspace: str) -> dict:
         raise GitHubError(f"the repository connection is broken: {conn.broken}", 400)
     if conn.pulled_sha is None:
         raise Conflict("sync from GitHub first, so sopops knows what the repository holds")
+    if (native := raad_backend.backend(store, conn)) is not None:
+        if conn.sync_pr_state != "open" or conn.proposal_head is not None:
+            return send_native(store, conn, native)
     got = sync(store, ws)
     if got["error"]:
         raise Conflict(got["error"])
@@ -361,3 +369,205 @@ def _utc(at: datetime | None) -> datetime | None:
     if at is None:
         return None
     return at.astimezone(timezone.utc) if at.tzinfo else at.replace(tzinfo=timezone.utc)
+
+
+# --- raad content backend ---------------------------------------------------
+
+
+def _input(db: Session, store: Store, ws: str) -> tuple[dict[str, str], str]:
+    head = store._head_rows(db, ws)
+    # Include tombstones and conflict revisions, so delete/recreate and ABA edits
+    # cannot make a stale reconciliation look current.
+    versions = list(db.exec(select(FileVersion.path, func.max(FileVersion.version)).where(
+        FileVersion.workspace == ws).group_by(FileVersion.path).order_by(FileVersion.path)))
+    conflicts = [c.model_dump(mode="json") for c in db.exec(select(SyncConflict).where(
+        SyncConflict.workspace == ws).order_by(SyncConflict.path))]
+    token = hashlib.sha256(json.dumps([[(p, v) for p, v in versions], conflicts], sort_keys=True).encode()).hexdigest()
+    return {r["path"]: r["content"] for r in head}, token
+
+
+def _capture(store: Store, conn: RepoConnection) -> tuple[dict[str, str], str]:
+    with store._locked(conn.workspace) as db:
+        row = db.get(RepoConnection, conn.workspace)
+        _check_connection(row, conn)
+        return _input(db, store, conn.workspace)
+
+
+def _check_connection(row: RepoConnection | None, expected: RepoConnection) -> None:
+    if row is None or row.broken or row.generation != expected.generation or row.pulled_sha != expected.pulled_sha:
+        raise Conflict("the repository connection or sync base changed; retry")
+
+
+def _apply(store: Store, conn: RepoConnection, token: str, plan: Plan, theirs: dict[str, str], sha: str,
+           author: str | None, *, replace: bool = False) -> list[dict]:
+    now = _now()
+    with store._locked(conn.workspace) as db:
+        row = db.get(RepoConnection, conn.workspace)
+        _check_connection(row, conn)
+        if _input(db, store, conn.workspace)[1] != token:
+            raise Conflict("drafts or sync conflicts changed while reading GitHub; retry")
+        written = store._write(db, conn.workspace, theirs if replace else plan.changes, author or AUTHOR,
+                               f"Synced from GitHub {sha[:7]}", replace=replace)
+        row.pulled_sha, row.pulled_digest, row.pulled_at, row.polled_at, row.sync_error = sha, github.digest(theirs), now, now, None
+        for c in list(db.exec(select(SyncConflict).where(SyncConflict.workspace == conn.workspace))):
+            if replace or c.path in plan.settled:
+                db.delete(c)
+        for path, (base, remote) in plan.conflicts.items():
+            c = db.get(SyncConflict, (conn.workspace, path))
+            if c is None:
+                db.add(SyncConflict(workspace=conn.workspace, path=path, sha=sha, base=base, theirs=remote,
+                                    created_at=now, updated_at=now))
+            else:
+                c.sha, c.base, c.theirs, c.updated_at = sha, base, remote, now
+        return written
+
+
+def _native_failure(store: Store, conn: RepoConnection, sha: str, message: str) -> dict:
+    with store._locked(conn.workspace) as db:
+        row = db.get(RepoConnection, conn.workspace)
+        _check_connection(row, conn)
+        row.sync_error, row.polled_at = message, _now()
+    notify(store, conn.workspace, "sync_error", sha=sha, error=message)
+    return {**_result(conn.workspace, sha, True), "error": message}
+
+
+def sync_native(store: Store, conn: RepoConnection, native: raad_backend.Backend, author: str | None, force: bool) -> dict:
+    # An event is a hint to inspect the current branch, never an instruction to
+    # activate an older event SHA. Retry one concurrent local edit with fresh input.
+    for attempt in range(2):
+        ours, token = _capture(store, conn)
+        try:
+            _compile_source(store, native.files())
+            theirs, sha = native.validated()
+            if forms.CONFIG not in theirs:
+                raise GitHubError(f"{conn.path or 'the repository root'} has no {forms.CONFIG}; nothing was synced", 400)
+            base = native.validated(conn.pulled_sha)[0] if conn.pulled_sha else None
+            plan = reconcile(base, ours, theirs)
+            written = _apply(store, conn, token, plan, theirs, sha, author)
+            _release_base(native, conn, sha)
+        except Conflict:
+            if attempt:
+                raise
+            current = github.require(store, conn.workspace)
+            if current.generation != conn.generation:
+                raise
+            conn = current
+            native = raad_backend.backend(store, conn)
+            if native is None:
+                raise Conflict("the repository backend changed; retry") from None
+            continue
+        except (GitHubError, Invalid) as error:
+            if isinstance(error, Invalid):
+                message = "; ".join(forms.locate(i).text or i.message for i in error.issues if i.severity == "error")[:600]
+            else:
+                message = str(error)
+            return _native_failure(store, conn, native.sha, message)
+        conflicts = sorted(plan.conflicts)
+        notify(store, conn.workspace, "synced", sha=sha, changed=len(written), conflicts=conflicts)
+        if conflicts:
+            notify(store, conn.workspace, "conflict", sha=sha, paths=conflicts)
+        return {**_result(conn.workspace, sha, not written), "changed": written, "merged": plan.merged, "conflicts": conflicts}
+    raise AssertionError("unreachable")
+
+
+def pull_native(store: Store, conn: RepoConnection, native: raad_backend.Backend, author: str | None) -> dict:
+    _, token = _capture(store, conn)
+    _compile_source(store, native.files())
+    files, sha = native.validated()
+    if forms.CONFIG not in files:
+        raise GitHubError(f"the connected folder has no {forms.CONFIG}", 400)
+    written = _apply(store, conn, token, Plan(), files, sha, author, replace=True)
+    _release_base(native, conn, sha)
+    return {"workspace": conn.workspace, "sha": sha, "files": len(files), "changed": written, "unchanged": not written}
+
+
+def send_native(store: Store, conn: RepoConnection, native: raad_backend.Backend) -> dict:
+    if conn.pending_operation and conn.pending_request:
+        payload = json.loads(conn.pending_request)
+        return _send_operation(store, conn, native, conn.pending_operation, payload["changes"],
+                               payload["base"], payload["head"])
+    got = sync_native(store, conn, native, None, False)
+    if got["error"]:
+        raise Conflict(got["error"])
+    conn = github.require(store, conn.workspace)
+    # Use precisely the reconciled commit, rather than silently rebasing onto a
+    # second branch-head read. The Rust write checks it still is the source head.
+    native = raad_backend.backend(store, conn)
+    if native is None:
+        raise Conflict("the repository backend changed; retry")
+    if native.sha != got["sha"]:
+        raise Conflict("the GitHub branch moved after reconciliation; sync and retry")
+    with store._locked(conn.workspace) as db:
+        row = db.get(RepoConnection, conn.workspace)
+        _check_connection(row, conn)
+        ours, _ = _input(db, store, conn.workspace)
+        if list(db.exec(select(SyncConflict.path).where(SyncConflict.workspace == conn.workspace))):
+            raise Conflict("resolve the sync conflicts first")
+        raw = native.files(raw=True)
+        changes = {p: ours.get(p) for p in sorted(set(ours) | set(raw)) if ours.get(p) != raw.get(p)}
+        if not changes:
+            raise Conflict(f"nothing to send: the drafts match {conn.base_branch}")
+        digest = hashlib.sha256(json.dumps([conn.generation, got["sha"], changes], sort_keys=True).encode()).hexdigest()
+        if row.pending_operation and row.pending_digest != digest:
+            raise Conflict("a previous send has an uncertain outcome; retry it before changing the proposal")
+        operation = row.pending_operation or uuid.uuid4().hex
+        row.pending_operation, row.pending_digest = operation, digest
+        row.pending_request = json.dumps({"changes": changes, "base": got["sha"], "head": conn.proposal_head}, sort_keys=True)
+    return _send_operation(store, conn, native, operation, changes, got["sha"], conn.proposal_head)
+
+
+def _send_operation(store: Store, conn: RepoConnection, native: raad_backend.Backend, operation: str,
+                    changes: dict, base: str, head: str | None) -> dict:
+    try:
+        outcome = native.propose(changes, title=SYNC_TITLE,
+                                 body="The current drafts from sopops. Sending again updates this pull request.",
+                                 branch=f"sopops/{conn.connection_id}/sync", operation_id=operation,
+                                 expected_head=head, expected_base=base)
+    except GitHubError as error:
+        if getattr(error, "write_rejected", False):
+            # The core proves this operation never published a ref. It is safe
+            # to discard the rejected request so the next send can reconcile.
+            with store._locked(conn.workspace) as db:
+                row = db.get(RepoConnection, conn.workspace)
+                if row and row.generation == conn.generation and row.pending_operation == operation:
+                    row.pending_operation = row.pending_digest = row.pending_request = None
+            if getattr(error, "raad_code", None) == "stale_base":
+                raise Conflict("the GitHub branch moved before sending; sync and retry") from None
+        raise
+    return _record_send(store, conn, operation, changes, outcome)
+
+
+def _record_send(store: Store, conn: RepoConnection, operation: str, changes: dict, outcome) -> dict:
+    if not outcome.proposal or not outcome.proposal.pull_request_url:
+        raise Conflict("nothing to send")
+    proposal = outcome.proposal
+    with store._locked(conn.workspace) as db:
+        row = db.get(RepoConnection, conn.workspace)
+        _check_connection(row, conn)
+        # A completed send records the exact machine head even if someone edited
+        # drafts during the network call; their edits stay for the next send.
+        if row.pending_operation != operation:
+            raise Conflict("another send changed the operation; refresh the connection")
+        row.proposal_head = proposal.commit_sha
+        row.pending_operation = row.pending_digest = row.pending_request = None
+        row.sync_pr_url, row.sync_pr_state, row.sync_pr_checked_at = proposal.pull_request_url, outcome.state, None
+    notify(store, conn.workspace, "sync_pr", url=proposal.pull_request_url, state=outcome.state)
+    return {"url": proposal.pull_request_url, "files": sorted(changes), "updated": outcome.outcome != "created"}
+
+
+
+def _release_base(native: raad_backend.Backend, conn: RepoConnection, sha: str) -> None:
+    if conn.pulled_sha and conn.pulled_sha != sha:
+        try:
+            native.repo.unpin(conn.pulled_sha)
+        except raad.RaadError:
+            log.warning("could not release the previous raad cache pin for %s", conn.workspace)
+
+
+
+def _compile_source(store: Store, files: dict[str, str]) -> None:
+    # Keep SOP's structured diagnostics for imports and rejected candidates;
+    # raad's generic validation still runs before any activation or remote write.
+    compiled = store.sop.compile(files)
+    if not compiled.valid:
+        raise Invalid([forms.locate(i) for i in compiled.issues])

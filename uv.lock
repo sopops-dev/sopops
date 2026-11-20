@@ -2399,6 +2399,11 @@ wheels = [
 ]
 
 [[package]]
+name = "raad"
+version = "0.1.2"
+source = { git = "https://github.com/amanmibra/raad.git?subdirectory=sdks%2Fpython&rev=d26c62b7026b36996509fb06566a896218862558#d26c62b7026b36996509fb06566a896218862558" }
+
+[[package]]
 name = "referencing"
 version = "0.37.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2731,6 +2736,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "pyjwt", extra = ["crypto"] },
+    { name = "raad" },
     { name = "sqlalchemy" },
     { name = "sqlmodel" },
     { name = "uvicorn" },
@@ -2775,6 +2781,7 @@ requires-dist = [
     { name = "livekit-api", marker = "extra == 'livekit'", specifier = ">=1.0" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.2" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10" },
+    { name = "raad", git = "https://github.com/amanmibra/raad.git?subdirectory=sdks%2Fpython&rev=d26c62b7026b36996509fb06566a896218862558" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "sqlmodel", specifier = ">=0.0.48" },
     { name = "typesafe-sdk", marker = "extra == 'jev'", specifier = "==0.7.5" },

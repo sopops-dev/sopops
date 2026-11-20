@@ -180,6 +180,8 @@ class FakeGitHub:
 
 @pytest.fixture(autouse=True)
 def secret_key(monkeypatch):
+    # These respx tests exercise the retained HTTPX compatibility backend.
+    monkeypatch.setenv("SOPOPS_GITHUB_BACKEND", "legacy")
     monkeypatch.setenv("SOPOPS_SECRET_KEY", Fernet.generate_key().decode())
     monkeypatch.delenv("SOPOPS_GITHUB_API_URL", raising=False)
 

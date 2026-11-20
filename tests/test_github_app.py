@@ -83,6 +83,8 @@ class AppGitHub(FakeGitHub):
 
 @pytest.fixture(autouse=True)
 def app_env(monkeypatch):
+    # These respx tests exercise the retained HTTPX compatibility backend.
+    monkeypatch.setenv("SOPOPS_GITHUB_BACKEND", "legacy")
     for k, v in {"SOPOPS_GITHUB_APP_ID": APP_ID, "SOPOPS_GITHUB_APP_PRIVATE_KEY": PEM, "SOPOPS_GITHUB_WEBHOOK_SECRET": SECRET,
                  "SOPOPS_GITHUB_APP_SLUG": SLUG}.items():
         monkeypatch.setenv(k, v)

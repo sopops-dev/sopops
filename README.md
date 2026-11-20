@@ -38,7 +38,7 @@ flowchart LR
 4. **Review** the patterns: a real mistake, acceptable, the procedure is wrong, or sopops is wrong.
 5. **Fix** with a suggested edit, compiled and shown as a diff of each agent's instructions. Apply it as a draft or a GitHub pull request.
 
-sopops is built on [sop](https://github.com/sopops-dev/sop), and compiles with the sop binary, so its output matches the CLI byte for byte.
+sopops is built on [sop](https://github.com/sopops-dev/sop), and compiles with the sop binary, so its output matches the CLI byte for byte. GitHub folders sync through [🤙 raad](https://github.com/amanmibra/raad); your drafts, conflict resolution and publishing stay in sopops.
 
 ## Quickstart
 

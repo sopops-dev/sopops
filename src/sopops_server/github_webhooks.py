@@ -76,7 +76,7 @@ def _push(store: Store, payload: dict[str, Any]) -> dict:
             skipped.append(conn.workspace)
             continue
         try:
-            got = repo_sync.sync(store, conn.workspace, sha=payload["after"])
+            got = repo_sync.sync(store, conn.workspace)
             (skipped if got["error"] else synced).append(conn.workspace)
         except (GitHubError, crypto.SecretKeyMissing) as e:
             log.warning("syncing %s after a push to %s/%s failed: %s", conn.workspace, conn.owner, conn.repo, e)

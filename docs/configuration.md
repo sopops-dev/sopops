@@ -82,6 +82,8 @@ that serves it from there; nothing in self-hosting uses it.
 
 | Variable | Default | What it does |
 |---|---|---|
+| `SOPOPS_GITHUB_BACKEND` | `auto` | Use raad for GitHub.com content operations. `legacy` selects the compatibility writer. Auth, validation, network and conflict failures never trigger fallback. |
+| `SOPOPS_RAAD_CACHE_DIR` | `~/.cache/sopops/raad` (`/data/raad` in Docker) | Private, persistent Git/snapshot cache, separated by database, workspace and connection. |
 | `SOPOPS_GITHUB_API_URL` | `https://api.github.com` | GitHub Enterprise Server: `https://HOST/api/v3`. Also set `SOPOPS_GITHUB_URL` to `https://HOST` for its install pages. |
 | `SOPOPS_GITHUB_APP_ID`, `SOPOPS_GITHUB_APP_PRIVATE_KEY` (or `…_PATH`), `SOPOPS_GITHUB_WEBHOOK_SECRET`, `SOPOPS_GITHUB_APP_SLUG` | unset | The GitHub App sopops signs in as: id, private key (PEM or file), webhook secret, and name in `github.com/apps/<slug>`. Without them, Settings offers to create one (stored encrypted with `SOPOPS_SECRET_KEY`). |
 

@@ -47,3 +47,29 @@ def test_ui_routes_fall_back_to_the_app_and_api_404s_stay_json(client):
     assert missing.status_code == 404 and missing.json() == {"detail": "Not Found"}
     assert client.get("/v1/workspaces").status_code == 200
     assert client.get("/openapi.json").json()["paths"]["/v1/workspaces"]["get"]["operationId"] == "list_workspaces"
+
+
+def test_existing_repo_connections_get_raad_identities(client):
+    from sqlmodel import Session
+    from sopops_server import github
+    from sopops_server.orm import RepoConnection
+    from conftest import downgrade
+
+    store = client.app.state.store
+    for ws in ("first", "second"):
+        with store._locked(ws) as db:
+            db.add(RepoConnection(workspace=ws, owner="acme", repo="agents", base_branch="main", path="sops", auth="token",
+                                  ciphertext="encrypted-test-token", hint="token", pulled_sha="a" * 40,
+                                  sync_pr_url="https://github.com/acme/agents/pull/1", sync_pr_state="open",
+                                  created_at=github._now(), updated_at=github._now()))
+    downgrade(store.engine, "0045")
+    upgrade(store.engine)
+    with Session(store.engine) as db:
+        rows = [db.get(RepoConnection, ws) for ws in ("first", "second")]
+        assert len({row.connection_id for row in rows}) == 2
+        assert len({row.generation for row in rows}) == 2
+        for row in rows:
+            assert len(row.connection_id) == len(row.generation) == 32
+            assert row.pulled_sha == "a" * 40 and row.sync_pr_state == "open"
+            assert row.ciphertext == "encrypted-test-token"
+            assert row.proposal_head is row.pending_operation is row.pending_request is None

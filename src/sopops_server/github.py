@@ -1,10 +1,10 @@
 """GitHub: a workspace's repository connection, pulling its sop project into drafts, and pull requests.
 
 A workspace that keeps its instructions in git connects the repository, the branch and the folder of its sop project
-(default `sops` on `main`, where onboarding writes it). **Pull** reads that folder at the branch's head (the git trees and blobs API) and makes it
+(default `sops` on `main`, where onboarding writes it). **Pull** reads that folder at the branch's head through raad and makes it
 the workspace's head, as drafts, like `PUT …/files` does; the commit is recorded, so pulling it again is a no-op.
 **Pull requests** carry suggestions back: `open_pull_request` commits files to a new `sopops/<id>` branch off the
-branch's head (blobs, a tree, a commit, a ref) and opens a PR against it. Two-way sync (drafts and the folder kept in
+branch's head through raad and opens a PR against it. Two-way sync (drafts and the folder kept in
 step, by webhooks or polling) is `sopops_server.repo_sync`.
 
 **The old config name.** Before sop v0.1.0 the compiler was named sopc and its config file `sopc.yaml`. sopops itself
@@ -29,6 +29,7 @@ import json
 import logging
 import re
 import uuid
+import raad
 from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
@@ -36,12 +37,12 @@ from urllib.parse import quote
 
 from sqlmodel import Session, select
 
-from . import forms, github_app
+from . import forms, github_app, raad_backend
 from .errors import NotFound, workspace_id
 from .github_client import API_ENV, API_VERSION, TIMEOUT, Client, GitHubError, api_url  # noqa: F401 (re-exported)
 from .orm import RepoConnection, SyncConflict
 from .runtime import crypto
-from .sop import BUILD_DIR, is_safe_path
+from .sop import BUILD_DIR, Invalid, is_safe_path
 
 if TYPE_CHECKING:
     from .store import Store
@@ -156,7 +157,7 @@ def connect(store: Store, workspace: str, owner: str, repo: str, token: str | No
         if require_project:
             _require_config(gh, owner, repo, head, base_branch, path)
     now = _now()
-    with Session(store.engine, expire_on_commit=False) as db, db.begin():
+    with store._locked(ws) as db:
         store.sessions._ensure_workspace(db, ws)
         row = db.get(RepoConnection, ws)
         same = row is not None and (row.owner, row.repo, row.base_branch, row.path) == (owner, repo, base_branch, path)
@@ -166,7 +167,11 @@ def connect(store: Store, workspace: str, owner: str, repo: str, token: str | No
             db.add(row)
         row.owner, row.repo, row.base_branch, row.path, row.auth, row.installation_id = owner, repo, base_branch, path, auth, installation_id
         row.ciphertext, row.hint = (crypto.encrypt(secret), crypto.hint(secret)) if auth == TOKEN else ("", "")
+        row.generation = uuid.uuid4().hex
         row.broken, row.updated_at = None, now
+        if not same:
+            row.connection_id = uuid.uuid4().hex
+            row.proposal_head = row.pending_operation = row.pending_digest = row.pending_request = None
         if not same:  # another project: the next pull isn't a repeat, and the sync starts over
             row.pulled_sha = row.pulled_digest = row.pulled_at = row.sync_error = None
             row.sync_pr_url = row.sync_pr_state = row.sync_pr_checked_at = None
@@ -189,7 +194,7 @@ def _require_config(gh: Client, owner: str, repo: str, head: str, base_branch: s
 
 def disconnect(store: Store, workspace: str) -> None:
     ws = _ws(workspace)
-    with Session(store.engine) as db, db.begin():
+    with store._locked(ws) as db:
         row = db.get(RepoConnection, ws)
         if row is None:
             raise NotFound(f"workspace '{ws}' has no repository connected")
@@ -226,9 +231,12 @@ def read_project(store: Store, workspace: str) -> tuple[dict[str, str], str]:
     the workspace (an import reads it this way, to check before applying)."""
     ws = _ws(workspace)
     conn = require(store, ws)
-    with client(store, conn) as gh:
-        sha = branch_head(gh, conn.owner, conn.repo, conn.base_branch)
-        files = read_folder(gh, conn, sha, {})
+    if (native := raad_backend.backend(store, conn)) is not None:
+        files, sha = native.files(), native.sha
+    else:
+        with client(store, conn) as gh:
+            sha = branch_head(gh, conn.owner, conn.repo, conn.base_branch)
+            files = read_folder(gh, conn, sha, {})
     if forms.CONFIG not in files:
         where = f"'{conn.path}'" if conn.path else "the repository root"
         raise GitHubError(f"no sop project at {where} on {conn.base_branch} ({sha[:7]}): {forms.CONFIG} isn't there", 400)
@@ -239,6 +247,8 @@ def read_head(store: Store, workspace: str) -> tuple[dict[str, str], str]:
     """Whatever the connected folder holds at the base branch's head (maybe nothing), named as in the repository (an
     OLD_CONFIG stays itself, so a pull request replacing the folder deletes it), and the commit."""
     conn = require(store, _ws(workspace))
+    if (native := raad_backend.backend(store, conn)) is not None:
+        return native.files(raw=True), native.sha
     with client(store, conn) as gh:
         sha = branch_head(gh, conn.owner, conn.repo, conn.base_branch)
         return read_folder(gh, conn, sha, {}, as_stored=True), sha
@@ -249,9 +259,12 @@ def inspect_project(store: Store, workspace: str) -> dict:
     `missing` (no folder, or no sop.yaml in it), `invalid` (sop can't build it; `issues` says why) or `valid`."""
     ws = _ws(workspace)
     conn = require(store, ws)
-    with client(store, conn) as gh:
-        sha = branch_head(gh, conn.owner, conn.repo, conn.base_branch)
-        files = read_folder(gh, conn, sha, {})
+    if (native := raad_backend.backend(store, conn)) is not None:
+        files, sha = native.files(), native.sha
+    else:
+        with client(store, conn) as gh:
+            sha = branch_head(gh, conn.owner, conn.repo, conn.base_branch)
+            files = read_folder(gh, conn, sha, {})
     out = {"workspace": ws, "repo": f"{conn.owner}/{conn.repo}", "base_branch": conn.base_branch, "path": conn.path, "sha": sha,
            "files": len(files), "agents": [], "issues": []}
     if forms.CONFIG not in files:
@@ -269,6 +282,9 @@ def pull(store: Store, workspace: str, author: str | None = None) -> dict:
     Raises Invalid (422) if the files don't compile."""
     ws = _ws(workspace)
     conn = require(store, ws)
+    if (native := raad_backend.backend(store, conn)) is not None:
+        from . import repo_sync
+        return repo_sync.pull_native(store, conn, native, author)
     head_files = {f["path"]: f["content"] for f in store.head(ws, content=True)}
     with client(store, conn) as gh:
         sha = branch_head(gh, conn.owner, conn.repo, conn.base_branch)
@@ -344,6 +360,18 @@ def open_pull_request(store: Store, workspace_id: str, files: Mapping[str, str |
     if bad:
         raise GitHubError(f"paths must be relative to the sop project, use '/', and not contain '..': {', '.join(sorted(bad))}", 400)
     title = title.strip() or "Suggested instruction changes"
+    if (native := raad_backend.backend(store, conn)) is not None:
+        target = {**native.files(raw=True), **files}
+        compiled = store.sop.compile(_as_sop_yaml({p: c for p, c in target.items() if c is not None}))
+        if not compiled.valid:
+            raise Invalid([forms.locate(i) for i in compiled.issues])
+        changes = {p: c for p, c in files.items() if native.files(raw=True).get(p) != c}
+        if not changes:
+            raise GitHubError(f"{conn.base_branch} already has these changes; nothing to propose", 409)
+        result = native.propose(changes, title=title, body=body, branch=branch or BRANCH_PREFIX + uuid.uuid4().hex,
+                                operation_id=uuid.uuid4().hex)
+        assert result.proposal and result.proposal.pull_request_url
+        return result.proposal.pull_request_url
     with client(store, conn) as gh:
         repo = repo_path(conn.owner, conn.repo)
         head = branch_head(gh, conn.owner, conn.repo, conn.base_branch)
@@ -388,6 +416,14 @@ def pr_status(store: Store, workspace_id: str, url: str) -> str:
         raise GitHubError(f"'{url}' isn't a pull request URL", 400)
     owner, repo, number = m.groups()
     conn = require(store, _ws(workspace_id))
+    if (owner.lower(), repo.lower()) != (conn.owner.lower(), conn.repo.lower()):
+        raise GitHubError("the pull request belongs to another repository", 400)
+    if raad_backend.configured():
+        credentials(conn, store)
+        try:
+            return raad_backend._repository(store, conn).proposal_status(int(number)).state
+        except raad.RaadError as error:
+            raise raad_backend.translate(error) from None
     with client(store, conn) as gh:
         pr = gh.get(f"/repos/{quote(owner)}/{quote(repo)}/pulls/{number}", what=f"pull request {owner}/{repo}#{number}")
     if pr.get("merged") or pr.get("merged_at"):

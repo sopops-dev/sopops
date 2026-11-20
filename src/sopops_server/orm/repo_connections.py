@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from uuid import uuid4
 
 from sqlmodel import BigInteger, Column, DateTime, Field, SQLModel, Text
 
@@ -22,6 +23,12 @@ class RepoConnection(SQLModel, table=True):
     __tablename__ = "repo_connections"
 
     workspace: str = Field(primary_key=True, max_length=128)
+    connection_id: str = Field(default_factory=lambda: uuid4().hex, max_length=32)
+    generation: str = Field(default_factory=lambda: uuid4().hex, max_length=32)
+    proposal_head: str | None = Field(default=None, max_length=64)
+    pending_operation: str | None = Field(default=None, max_length=64)
+    pending_request: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    pending_digest: str | None = Field(default=None, max_length=64)
     owner: str = Field(max_length=100)
     repo: str = Field(max_length=100)
     base_branch: str = Field(max_length=255)

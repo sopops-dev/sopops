@@ -2,7 +2,7 @@
 
 ## Set up
 
-You need [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io) and the [sop](https://github.com/sopops-dev/sop) binary, v0.1.0 or later.
+You need [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io) and the [sop](https://github.com/sopops-dev/sop) binary, v0.1.2 or later. Git 2.45+ is required for the GitHub content backend. This branch pins raad to a companion Git commit; installing it from source also needs Rust 1.94+. The Docker builder includes Rust and leaves it out of the runtime image.
 
 ```sh
 uv sync --all-extras
@@ -105,3 +105,10 @@ A monthly workflow (`sdk-release-reminder.yml`) opens an issue when either SDK h
 ## Pull requests
 
 Keep each one to one change, with tests. Run `uv run pytest` and `pnpm -C web build` before you open it, and `pnpm -C docs build` if you changed `docs/`.
+
+
+## GitHub sync checks
+
+`SOP_BIN=/path/to/sop uv run pytest tests/test_raad_github.py` exercises the real native raad SDK against temporary Git repositories and a loopback GitHub API. It covers the HTTP connection/import/send flow, current-head sync, conflicts, rejected revisions, setup/repair proposals, retry recovery and human branch edits. Set `SOPOPS_TEST_DATABASE_URL` to run it on PostgreSQL. The existing HTTPX/respx GitHub tests explicitly select `SOPOPS_GITHUB_BACKEND=legacy` to keep compatibility coverage.
+
+The full PostgreSQL suite uses many short-lived test engines. Match CI's `max_connections=500` and use UTF-8 test databases. No real repository or token is required. A simulator doesn't verify real GitHub App permissions or branch protection. The container configuration also needs `docker build` verification on a machine with a running Docker daemon.

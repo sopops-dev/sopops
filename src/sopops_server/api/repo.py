@@ -73,7 +73,7 @@ def router(store: Store) -> APIRouter:
     @r.post(f"{path}/send", response_model=SendOut, dependencies=OPEN, tags=["repo"],
             responses={**GITHUB, 409: {"description": "Nothing to send, unresolved sync conflicts, or never synced."}})
     def send_repo_drafts(workspace: str) -> dict:
-        """Send drafts to GitHub: open the sync pull request (branch `sopops/sync`) with the drafts' differences from
+        """Send drafts to GitHub: open the connection's sync pull request with the drafts' differences from
         the base branch, or update the open one. Syncs from GitHub first."""
         return repo_sync.send(store, workspace)
 

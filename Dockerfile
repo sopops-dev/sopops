@@ -1,5 +1,4 @@
-# One image: the web UI built with node, served by sopops (FastAPI) with the sop compiler.
-
+# Build the UI and native dependencies separately; runtime needs no Rust toolchain.
 FROM node:22-slim AS web
 RUN corepack enable
 WORKDIR /web
@@ -8,33 +7,37 @@ RUN pnpm install --frozen-lockfile
 COPY web/ ./
 RUN pnpm build
 
-FROM python:3.12-slim
+FROM python:3.12-slim-trixie AS dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates git build-essential \
+    && rm -rf /var/lib/apt/lists/*
+ARG RUST_VERSION=1.94.0
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$RUST_VERSION"
+ENV PATH=/root/.cargo/bin:$PATH UV_PROJECT_ENVIRONMENT=/opt/venv
+COPY --from=ghcr.io/astral-sh/uv:0.12.3 /uv /usr/local/bin/uv
+WORKDIR /build
+COPY pyproject.toml uv.lock ./
+# uv verifies the registry hashes and exact Git revision in the frozen lockfile.
+RUN uv sync --frozen --no-dev --no-install-project --extra postgres --extra hatchet --extra livekit
 
-# sop compiles the prompts; pinned so served prompts don't change under a rebuild.
+FROM python:3.12-slim-trixie
 ARG SOP_REF=v0.1.2
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates git \
+    && git --version | python -c 'import sys; assert tuple(map(int, sys.stdin.read().split()[2].split(".")[:2])) >= (2,45)' \
     && curl -fsSL https://raw.githubusercontent.com/sopops-dev/sop/main/install.sh | SOP_REF=$SOP_REF SOP_INSTALL_DIR=/usr/local/bin sh \
     && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-# Dependencies from uv.lock, every one checked against its sha256 (--require-hashes): no unpinned upgrades.
+COPY --from=dependencies /opt/venv /opt/venv
 COPY --from=ghcr.io/astral-sh/uv:0.12.3 /uv /usr/local/bin/uv
-COPY pyproject.toml uv.lock ./
-# Extras: postgres, hatchet (the worker), livekit (no-code LiveKit capture: join a room and read its transcript).
-RUN uv export --frozen --no-dev --no-emit-project --extra postgres --extra hatchet --extra livekit -o /tmp/requirements.txt \
-    && pip install --no-cache-dir --require-hashes -r /tmp/requirements.txt && rm /tmp/requirements.txt /usr/local/bin/uv
-COPY README.md hatch_build.py ./
+ENV PATH=/opt/venv/bin:$PATH
+WORKDIR /app
+COPY pyproject.toml README.md hatch_build.py ./
 COPY src ./src
 COPY skills ./skills
 COPY --from=web /web/dist ./web/dist
-# The build hook bundles web/dist into the package as sopops_server/static, and the onboarding skill (skills/) with it.
-RUN pip install --no-cache-dir --no-deps . && rm -rf web skills
+RUN uv pip install --python /opt/venv/bin/python --no-cache --no-deps . && rm -rf web skills /usr/local/bin/uv
 
-# Set DATABASE_URL to Postgres in production; the SQLite default lives in the /data volume.
-# Migrations run on startup.
-RUN mkdir /data && chown nobody /data
+RUN mkdir -p /data/raad && chown -R nobody /data
 VOLUME /data
-ENV HOST=0.0.0.0 PORT=8484 SOP_BIN=/usr/local/bin/sop DATABASE_URL=sqlite:////data/sopops.db
+ENV HOST=0.0.0.0 PORT=8484 SOP_BIN=/usr/local/bin/sop DATABASE_URL=sqlite:////data/sopops.db SOPOPS_RAAD_CACHE_DIR=/data/raad
 EXPOSE 8484
 USER nobody
 CMD ["sopops"]

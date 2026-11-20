@@ -2009,7 +2009,7 @@ export const syncRepo = <ThrowOnError extends boolean = false>(options: Options<
 /**
  * Send Repo Drafts
  *
- * Send drafts to GitHub: open the sync pull request (branch `sopops/sync`) with the drafts' differences from
+ * Send drafts to GitHub: open the connection's sync pull request with the drafts' differences from
  * the base branch, or update the open one. Syncs from GitHub first.
  */
 export const sendRepoDrafts = <ThrowOnError extends boolean = false>(options: Options<SendRepoDraftsData, ThrowOnError>): RequestResult<SendRepoDraftsResponses, SendRepoDraftsErrors, ThrowOnError> => (options.client ?? client).post<SendRepoDraftsResponses, SendRepoDraftsErrors, ThrowOnError>({ url: '/v1/workspaces/{workspace}/repo/send', ...options });

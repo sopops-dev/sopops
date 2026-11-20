@@ -21,6 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+      - uses: dtolnay/rust-toolchain@1.94.0
       # Started by hand, not as a service, to raise max_connections: each parallel worker opens its own pools.
       - name: Start Postgres
         run: |
@@ -50,6 +51,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - uses: dtolnay/rust-toolchain@1.94.0
       - name: Generated API client matches the backend
         run: pnpm gen:api && git diff --exit-code -- openapi.json src/client
       - run: pnpm typecheck

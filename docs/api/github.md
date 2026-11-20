@@ -26,7 +26,7 @@ A workspace's repository is the sop project at `path` on `base_branch`. It signs
 | `POST /v1/workspaces/{ws}/repo/pull` | `?author=`: make head exactly the folder at the branch's head, as drafts (`build/` skipped). Returns `{workspace, sha, files, changed, unchanged}`. The same commit with head unchanged since is a no-op. `422` (sop's issues) if it doesn't compile. |
 | `POST /v1/workspaces/{ws}/repo/sync` | `?author=`: bring the folder at the branch's head into drafts, merging both ways. Returns `{workspace, sha, changed, merged, conflicts, unchanged, error}`. |
 | `GET/POST /v1/workspaces/{ws}/repo/conflict` | `?path=`: a sync conflict's `base`, `ours` and `theirs`. Post `{path, take: mine \| github \| edited, content?, author?}` to settle it. |
-| `POST /v1/workspaces/{ws}/repo/send` | Open or update the sync pull request (branch `sopops/sync`) with the drafts' differences from the branch's head. Returns `{url, files, updated}`. |
+| `POST /v1/workspaces/{ws}/repo/send` | Open or update the sync pull request (branch `sopops/<connection-id>/sync`) with the drafts' differences from the branch's head. Returns `{url, files, updated}`. |
 
 ```sh
 curl -s -X POST -H "Content-Type: application/json" \
@@ -145,3 +145,20 @@ state = github.pr_status(store, workspace_id, url)  # "open", "merged" or "close
 `open_pull_request` commits `files` (paths relative to the project's folder; `None` deletes) to a new branch `sopops/<id>`, or `branch`, off the base branch's head, as blobs, a tree, a commit and a ref.
 
 It then opens a pull request against the base branch and returns its URL. It raises `NotFound` when the workspace has no repository, and `GitHubError` for anything GitHub refuses.
+
+
+## GitHub content backend
+
+GitHub.com connections use the native [raad SDK](https://github.com/amanmibra/raad) for folder reads, import previews, proposals, sync and PR status. SOP compilation, drafts, three-way merges, conflict resolution and publishing stay in sopops. PAT encryption and GitHub App installation-token minting use the existing connection.
+
+Sync resolves the current branch head, including when a webhook arrives late. It pins that commit and updates drafts, conflicts and the merge base in one transaction. A concurrent draft edit is recomputed once; a reconnection fences the older operation. Failed reads or validation preserve drafts, merge base and published releases. An invalid or absent folder can still be inspected and repaired through a validated setup proposal.
+
+Send uses the exact reconciled commit and one branch per connection. It updates the same open PR using GitHub's atomic expected-head check. Human edits to that branch cause a conflict. An uncertain write is stored with its exact request and operation ID; sending again recovers that operation before sending newer drafts. A validation failure or source move proven to occur before publication clears that rejected request so a fresh sync can proceed; an already-published operation can finish its PR without rewriting the source branch. A no-op returns the existing 409 response and leaves any open PR alone. GitHub merges don't publish a sopops release: publishing stays explicit.
+
+An existing open `sopops/sync` PR keeps the compatibility writer until it closes or merges. Nondefault GitHub API endpoints and unsupported Git tree layouts also use that backend. `SOPOPS_GITHUB_BACKEND=legacy` selects it explicitly. Validation, permissions, rate limits, network failures and stale heads never silently switch writers.
+
+Keep `SOPOPS_RAAD_CACHE_DIR` private and persistent. `build/` is excluded before blob reads and validation. A folder mount limits exposed files, not every object Git may cache; use a dedicated data repository for strict minimization. The cache helps recover prior validated content, but sync never advances the merge base after a failed read. Losing both the cache and access to an old base requires restoring access before a safe merge.
+
+Automatic write recovery currently covers sync sends. If a one-off setup or suggestion PR fails with an uncertain remote outcome, inspect GitHub before retrying; those older API calls don't persist operation IDs.
+
+The webhook handler still uses the existing in-process/background-job path. Durable webhook delivery, distributed write leases and GitHub Enterprise through raad aren't provided by this integration. Local tests use authenticated Git/API simulators; verify your installation-token permissions and branch policies in your deployment.
