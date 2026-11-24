@@ -20,6 +20,10 @@
 - **Themes** group a procedure's rule patterns by the phase of the session where they happen; a model names and
   orders them, reusing existing theme names where they still fit (by key, else by member overlap).
 
+- Findings have a **TTL** (`FINDING_TTL`, 30 days; `SOPOPS_FINDING_TTL_DAYS`, 0 for none): a finding on a session that
+  started longer ago than that is left out of patterns. It isn't assigned (no model call), clustering doesn't see it,
+  and counts leave it out. The daily pass refreshes counts so findings age out; the patterns API counts no further back.
+
 A finding's `pattern_id` is its most specific pattern: its sub-pattern once the rule is split, else the rule pattern.
 Each function takes an `AI` (tests pass a fake) and is plain, so it runs inline and as a Hatchet task.
 """
@@ -27,11 +31,12 @@ Each function takes an `AI` (tests pass a fake) and is plain, so it runs inline 
 from __future__ import annotations
 
 import logging
+import os
 import re
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from sqlmodel import Session, func, select
@@ -69,6 +74,7 @@ MATERIAL_JACCARD = 0.5  # a matched failure mode sharing less than this with its
 CLUSTER_SAMPLE = 150  # most recent findings shown to the model; older ones are assigned like new ones
 ASSIGN_BATCH = 25
 MAX_THEMES = 6
+FINDING_TTL = timedelta(days=int(os.environ.get("SOPOPS_FINDING_TTL_DAYS", "30") or 0))  # 0: findings never age out
 
 KIND_LABEL = {"step": "Step", "option": "Step", "never": "Never", "warning": "Warning sign"}  # an OR option is part of its step
 INDEX_NAME = re.compile(r"^(Step \d+ missed|Never rule \d+ broken|Warning sign \d+ not acted on|Rule \d+)$")  # before names came from the rule
@@ -76,6 +82,17 @@ INDEX_NAME = re.compile(r"^(Step \d+ missed|Never rule \d+ broken|Warning sign \
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def ttl_cutoff() -> datetime | None:
+    """Sessions that started before this are too old for patterns (None: no TTL)."""
+    return _now() - FINDING_TTL if FINDING_TTL else None
+
+
+def _fresh(q):
+    """Only findings on sessions inside the TTL, for a query joined to sessions."""
+    cut = ttl_cutoff()
+    return q if cut is None else q.where(SessionRecord.started_at >= cut)
 
 
 def _id() -> str:
@@ -210,6 +227,10 @@ class Patterns:
 
     def _assign_and_follow_up(self, ws: str, findings: list[Finding], ai: AI | None, recluster: bool) -> Outcome:
         out = Outcome()
+        if findings and ttl_cutoff() is not None:  # too old for patterns: left unassigned, no model call
+            with self._db() as db:
+                live = set(db.exec(_fresh(select(SessionRecord.id).where(SessionRecord.id.in_({f.session_id for f in findings})))))
+            findings = [f for f in findings if f.session_id in live]
         if not findings:
             return out
         ai = ai or self.store.ai_keys.ai(ws)
@@ -382,6 +403,10 @@ class Patterns:
             rule_pats = list(db.exec(q))
         paused = {ws for ws in {rp.workspace_id for rp in rule_pats} if self.store.analysis.paused(ws)}
         rule_pats = [rp for rp in rule_pats if rp.workspace_id not in paused]
+        with self._db() as db, db.begin():  # findings past the TTL age out of the counts
+            rule_pats = [p for p in (db.get(Pattern, rp.id) for rp in rule_pats) if p is not None]
+            for rp in rule_pats:
+                refresh_counts(db, rp)
         for ws in sorted({rp.workspace_id for rp in rule_pats}):  # rule patterns named without a model get the model's name
             self.name(ws, ai=ai or self.store.ai_keys.ai(ws))
         touched: set[tuple[str, str]] = set()
@@ -432,7 +457,7 @@ class Patterns:
                 return False
             findings = list(
                 db.exec(
-                    select(Finding).join(SessionRecord, SessionRecord.id == Finding.session_id)
+                    _fresh(select(Finding).join(SessionRecord, SessionRecord.id == Finding.session_id))
                     .where(Finding.workspace_id == ws, Finding.procedure_id == procedure_id, lineage.in_lineage(Finding.rule_id, ws, procedure_id, rule_id))
                     .order_by(SessionRecord.started_at.desc(), Finding.id)
                 )
@@ -624,19 +649,19 @@ def named_by_model(p: Pattern, texts: list[str]) -> bool:
 
 
 def refresh_counts(db: Session, rule_pat: Pattern) -> None:
-    """Counts and first/last seen for a rule pattern (every finding on its lineage) and its sub-patterns."""
+    """Counts and first/last seen for a rule pattern (every finding on its lineage) and its sub-patterns, inside the TTL."""
     family = [rule_pat, *db.exec(select(Pattern).where(Pattern.parent_id == rule_pat.id))]
     ids = [p.id for p in family]
     rows = db.exec(
-        select(Finding.pattern_id, func.count(Finding.id), func.count(func.distinct(Finding.session_id)), func.min(SessionRecord.started_at), func.max(SessionRecord.started_at))
-        .join(SessionRecord, SessionRecord.id == Finding.session_id)
+        _fresh(select(Finding.pattern_id, func.count(Finding.id), func.count(func.distinct(Finding.session_id)), func.min(SessionRecord.started_at), func.max(SessionRecord.started_at))
+        .join(SessionRecord, SessionRecord.id == Finding.session_id))
         .where(Finding.pattern_id.in_(ids))
         .group_by(Finding.pattern_id)
     ).all()
     stats = {r[0]: r[1:] for r in rows}
     total = db.exec(
-        select(func.count(Finding.id), func.count(func.distinct(Finding.session_id)), func.min(SessionRecord.started_at), func.max(SessionRecord.started_at))
-        .join(SessionRecord, SessionRecord.id == Finding.session_id)
+        _fresh(select(func.count(Finding.id), func.count(func.distinct(Finding.session_id)), func.min(SessionRecord.started_at), func.max(SessionRecord.started_at))
+        .join(SessionRecord, SessionRecord.id == Finding.session_id))
         .where(Finding.workspace_id == rule_pat.workspace_id, Finding.procedure_id == rule_pat.procedure_id,
                lineage.in_lineage(Finding.rule_id, rule_pat.workspace_id, rule_pat.procedure_id, rule_pat.rule_id))
     ).one()

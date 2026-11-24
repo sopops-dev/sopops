@@ -20,6 +20,7 @@ from sopops_server.ai.signatures import CheckRules, ClusterFindings, GroupThemes
 from sopops_server.cli import main as cli
 from sopops_server.jobs import Jobs
 from sopops_server.orm import Finding, Pattern, Theme
+from sopops_server import patterns as patterns_mod
 from sopops_server.patterns import OTHER_MIN_NEW, RECLUSTER_NEW, SPLIT_AT, jaccard, reason_due
 
 NEVER_1 = 'Never say an item is "allergen-free" or "safe"'  # the rule pattern's name: the rule's text, without a model
@@ -246,6 +247,27 @@ def test_pattern_api_and_recluster_endpoint(env):
     assert len(env.client.get(f"{WS}/sessions", params={"pattern": rules[0]["pattern_id"]}).json()["items"]) == 8
     r = env.client.post(f"{WS}/patterns/recluster", json={"procedure": ALLERGEN, "force": True})
     assert r.status_code == 200 and r.json()["reclustered"] == [rules[0]["rule_id"]]
+
+
+def test_findings_past_the_ttl_age_out_of_patterns(env, monkeypatch):
+    for _ in range(4):
+        env.send("A")
+    (rule,) = [p for p in patterns(env.store) if p.kind == "rule"]
+    assert rule.finding_count == 4
+    # the TTL puts its cutoff after session 2: 3 and 4 are fresh
+    monkeypatch.setattr(patterns_mod, "FINDING_TTL", datetime.now(timezone.utc) - (T0 + timedelta(minutes=2, seconds=30)))
+    env.store.patterns.recluster_due(rule.workspace_id, env.fake)
+    with Session(env.store.engine) as db:
+        assert db.get(Pattern, rule.id).finding_count == 2
+    got = env.client.get(f"{WS}/patterns", params={"window": "365d"}).json()["items"]
+    assert [(p["findings"], p["sessions"]) for p in got] == [(2, 2)]
+    # a finding on a session already past the TTL isn't assigned (no model call)
+    monkeypatch.setattr(patterns_mod, "FINDING_TTL", datetime.now(timezone.utc) - (T0 + timedelta(minutes=5, seconds=30)))
+    old = env.send("A")
+    assert finding_patterns(env.store)[old] is None
+    # every finding aged out: the pattern isn't listed
+    env.store.patterns.recluster_due(rule.workspace_id, env.fake)
+    assert env.client.get(f"{WS}/patterns", params={"window": "365d"}).json()["items"] == []
 
 
 def test_recluster_cli(env, capsys):

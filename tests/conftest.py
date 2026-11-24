@@ -4,6 +4,9 @@ import shutil
 from pathlib import Path
 
 import pytest
+
+os.environ.setdefault("SOPOPS_FINDING_TTL_DAYS", "0")  # fixtures run on fixed past dates; test_patterns turns the TTL on
+
 from fastapi.testclient import TestClient
 from sqlalchemy import make_url, text
 

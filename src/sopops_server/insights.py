@@ -426,6 +426,8 @@ class Insights:
             n = own[0] + sum(x["findings"] for x in subs)
             s = own[1] + sum(x["sessions"] for x in subs)  # a session has at most one finding per rule
             gone = hidden.get(p.id, (0, 0))[0] + sum(hidden.get(c.id, (0, 0))[0] for c in children.get(p.id, []))
+            if n == 0 and gone == 0:  # nothing in the window (or every finding aged out)
+                continue
             t = texts.get((p.procedure_id, p.rule_id), {})
             rule = {"kind": t.get("kind"), "index": t.get("index"), "text": t.get("text")}
             out.append({**_pattern_out(p, n, s), "description": t.get("text") or p.description, "theme_name": theme_names.get(p.theme_id or ""), "suppressed": gone,
